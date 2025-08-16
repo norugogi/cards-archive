@@ -407,43 +407,30 @@
       return `https://${ghOwner.value}.github.io/${ghRepo.value}`;
     }
 
-    const viewerTemplate = () => `<!DOCTYPE html>
-<html lang="ko"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>카드 뷰어</title>
-<style>body{margin:0;background:#0b0d10;color:#e8f0ff;font-family:ui-sans-serif,system-ui;-webkit-font-smoothing:antialiased} .layout{display:grid;grid-template-columns:300px 1fr;min-height:100vh} aside{background:#0f141c;border-right:1px solid #1a2230;padding:12px} main{display:grid;place-items:center;padding:12px} h1{font-size:16px;margin:8px 8px 12px;color:#cfe1ff} .item{display:flex;gap:8px;align-items:center;padding:8px;margin:6px;border:1px solid #1a2230;border-radius:10px;background:#0b0f15;cursor:pointer} .item:hover{border-color:#2a3952} .thumb{width:48px;height:32px;background:#111;border-radius:6px;background-size:cover;background-position:center} .meta{display:flex;flex-direction:column;font-size:12px} .meta .t{font-weight:700} iframe{width:1028px;max-width:95vw;height:720px;border:0;border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,.35);background:#111} .footer{color:#9fb3cc;font-size:12px;text-align:center;padding:8px;border-top:1px solid #1a2230}</style>
-</head><body>
-<div class="layout">
-  <aside>
-    <h1>카드 히스토리</h1>
-    <div id="list"></div>
-    <div class="footer">© 카드 뷰어</div>
-  </aside>
-  <main>
-    <iframe id="viewer" title="카드 미리보기"></iframe>
-  </main>
-</div>
-<script>
-(function(){
-  function loadHistory(){
-    return fetch('history.json', {cache:'no-cache'}).then(function(res){ if(!res.ok) throw new Error('history.json 로드 실패'); return res.json(); });
-  }
-  var listEl = document.getElementById('list'); var frame = document.getElementById('viewer');
-  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
-  loadHistory().then(function(hist){
-    listEl.innerHTML='';
-    hist.forEach(function(it,idx){
-      var d=document.createElement('div'); d.className='item';
-      var thumb = '<div class="thumb" style="background-image:url(' + JSON.stringify(it.image||'') + ')"></div>';
-      var meta  = '<div class="meta"><div class="t">' + esc(it.title||'') + '</div><div>' + (it.date||'') + ' · 참여 ' + (it.count||0) + '명</div></div>';
-      d.innerHTML = thumb + meta;
-      d.addEventListener('click', function(){ frame.src = it.url; });
-      listEl.appendChild(d);
-      if(idx===0){ frame.src = it.url; }
-    });
-  }).catch(function(err){ listEl.textContent='히스토리를 불러오지 못했습니다.'; console.error(err); });
-})();
-<\/script>
-</body></html>`; d.addEventListener('click',()=>{ frame.src = it.url; }); listEl.appendChild(d); if(idx===0){ frame.src = it.url; } }); }
+    const viewerTemplate = function(){
+      // 안전한 최소 뷰어(스크립트/템플릿 리터럴/정규식 없음)
+      var html = '';
+      html += '<!DOCTYPE html>
+';
+      html += '<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>';
+      html += '<title>카드 뷰어</title>
+';
+      html += '<style>body{margin:0;background:#0b0d10;color:#e8f0ff;font-family:ui-sans-serif,system-ui} .wrap{min-height:100vh;display:grid;place-items:center;padding:24px} .card{max-width:900px;background:#0f141c;border:1px solid #1a2230;border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.35);padding:20px} h1{font-size:18px;margin:0 0 12px;color:#cfe1ff} p{color:#a8b7cf;line-height:1.6} a{color:#6aa7ff}</style>
+';
+      html += '</head>
+<body>
+<div class="wrap"><div class="card">';
+      html += '<h1>카드 뷰어 초기화됨</h1>';
+      html += '<p>history.json을 기반으로 히스토리를 보여주는 뷰어가 곧 활성화됩니다.<br/>첫 카드를 배포하면 이 페이지는 히스토리 뷰어로 교체되거나, 수동으로 교체할 수 있습니다.</p>';
+      html += '<p>메인 저장소로 돌아가기: <a href="./">여기</a></p>';
+      html += '</div></div>
+</body>
+</html>';
+      return html;
+    }; d.addEventListener('click',()=>{ frame.src = it.url; }); listEl.appendChild(d); if(idx===0){ frame.src = it.url; } }); }
   render(hist);
 })();
 <\/script>
