@@ -1,1 +1,489 @@
-<h1>Hello</h1>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flip Card 참여보드</title>
+  <style>
+    :root{ --bg:#0b0d10; --card:#14181e; --ink:#e8f0ff; --muted:#96a1b3; --accent:#6aa7ff; --radius:22px; --shadow:0 20px 50px rgba(0,0,0,.35); }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", Arial, sans-serif; background: radial-gradient(1200px 700px at 20% -10%, #18202b 0%, transparent 60%), radial-gradient(1200px 700px at 120% 110%, #151c24 0%, transparent 60%), var(--bg); color:var(--ink); display:grid; place-items:center; padding:24px; }
+    .wrap{width:min(1180px, 98vw)}
+    .header{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px}
+    .title{font-weight:800; letter-spacing:.3px; font-size: clamp(18px, 3vw, 24px)}
+    .sub{color:var(--muted); font-size:14px}
+
+    .board{display:grid; grid-template-columns: 1.25fr auto; gap:20px; align-items:start}
+
+    /* Flip Card */
+    .scene{width:100%; perspective:1200px}
+    .card{position:relative; width:100%; max-width:1028px; height:720px; transform-style:preserve-3d; transition:transform .9s cubic-bezier(.2,.8,.2,1); margin:auto}
+    .card.is-flipped{transform: rotateY(180deg)}
+    .face{position:absolute; inset:0; backface-visibility:hidden; border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);}
+    .front{background:#0f1319 url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1400&auto=format&fit=crop') center/cover no-repeat}
+    .front::after{content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.5));}
+    .frontBadges{position:absolute; inset:auto 18px 18px 18px; display:flex; gap:10px; flex-wrap:wrap}
+    .badge{background: rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.18); padding:6px 10px; border-radius:999px; font-size:12px; backdrop-filter: blur(6px)}
+    .frontTitle{position:absolute; left:20px; bottom:72px; right:20px; font-weight:800; font-size: clamp(28px, 4.5vw, 44px); text-shadow:0 4px 18px rgba(0,0,0,.5)}
+    .frontFoot{position:absolute; left:20px; bottom:20px; right:20px; display:flex; justify-content:space-between; align-items:center; color:#cfe1ff; font-size:14px}
+
+    .back{background:linear-gradient(180deg,#0e141d,#0c1118); transform: rotateY(180deg);}
+    .backHead{display:flex; justify-content:space-between; align-items:end; padding:18px 18px 0}
+    .count{font-weight:800; font-size: clamp(20px, 3.2vw, 26px)}
+    .names{position:absolute; inset:56px 0 0; padding: 8px 18px 18px; overflow:auto}
+    .pill{display:inline-block; margin:6px; padding:9px 14px; background:#111823; color:#e7efff; border:1px solid #1b2330; border-radius:999px; font-size:14px}
+
+    /* Side panel */
+    .panel{min-width:300px; background:linear-gradient(180deg,#10151d,#0f141c); border:1px solid #1a2230; border-radius:16px; box-shadow:var(--shadow); position:relative}
+    .panel h3{margin:14px 14px 6px; font-size:14px; color:#c7d6ee}
+    .panel .field{display:flex; gap:8px; padding:10px 14px}
+    .panel input, .panel textarea{width:100%; background:#0b0f15; border:1px solid #1b2433; color:var(--ink); border-radius:12px; padding:10px 12px; outline:none}
+    .panel textarea{min-height:120px; resize:vertical}
+    .panel small{display:block; color:#93a0b5; opacity:.9; padding:0 14px 10px}
+    .actions{display:flex; gap:8px; padding:12px 14px 14px; flex-wrap:wrap}
+    .btn{flex:1; background:#0c121a; border:1px solid #1b2433; color:#cfe1ff; padding:10px 12px; border-radius:12px; cursor:pointer; font-weight:700}
+    .btn.primary{background:linear-gradient(180deg,#1a68ff,#0f55db); border:none}
+    .btn.ghost{background:transparent}
+
+    .hint{color:var(--muted); font-size:12px; margin-top:6px}
+    .flipBtn{appearance:none; border:none; background:#0c121a; border:1px solid #1b2433; color:#dbe7ff; padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:800}
+    .flipBtn:hover{border-color:#2a3952}
+    .footer{margin-top:14px; text-align:center; color:#8fa1b8; font-size:12px}
+
+    /* Modal */
+    .modal{position:fixed; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.45); z-index:50}
+    .hidden{display:none}
+    .modal-card{width:min(560px, 92vw); background:linear-gradient(180deg,#10151d,#0f141c); border:1px solid #1a2230; border-radius:16px; box-shadow:var(--shadow); padding:16px}
+    .modal-card h3{margin:0 0 10px; font-size:16px; color:#cfe1ff}
+    .modal-card input{width:100%; background:#0b0f15; border:1px solid #1b2433; color:#e8f0ff; border-radius:10px; padding:10px 12px}
+    .modal-actions{display:flex; gap:8px; margin-top:12px}
+    .modal-actions .btn{flex:unset}
+    .status{margin-top:8px; color:#9fb3cc; font-size:12px}
+
+    /* Card-only (viewer) mode */
+    body.card-only .board{grid-template-columns: 1fr}
+    body.card-only .panel, body.card-only .actions, body.card-only .header .sub{display:none}
+    body.card-only .wrap{width:min(1100px, 98vw)}
+    body.card-only .scene{display:grid; place-items:center}
+
+    /* Scrollbar aesthetics */
+    .names::-webkit-scrollbar{height:12px;width:12px}
+    .names::-webkit-scrollbar-thumb{background:#1a2433;border-radius:999px;border:3px solid transparent;background-clip:padding-box}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div>
+        <div class="title">Flip Card 참여보드</div>
+        <div class="sub">카드를 클릭하면 뒷면에 참여자 목록이 나타납니다. (로컬 저장 지원 · GitHub Pages 배포 지원)</div>
+      </div>
+      <div class="header-actions">
+        <button id="flip" class="flipBtn" title="카드 뒤집기">카드 뒤집기 ↺</button>
+      </div>
+    </div>
+
+    <div class="board">
+      <!-- Card Scene -->
+      <div class="scene">
+        <div id="card" class="card" role="button" aria-label="카드를 클릭하여 뒤집기" tabindex="0">
+          <div class="face front" id="front">
+            <div class="frontTitle" id="frontTitle">이벤트 타이틀 예시 : 보스 토벌전</div>
+            <div class="frontBadges" id="frontBadges">
+              <div class="badge">📅 2025-08-16</div>
+              <div class="badge" id="badgeCount">👥 참여 0</div>
+              <div class="badge">#주간챌린지</div>
+            </div>
+            <div class="frontFoot">
+              <span>클릭/터치하여 뒤집기</span>
+              <span id="watermark">@YourCommunity</span>
+            </div>
+          </div>
+          <div class="face back">
+            <div class="backHead">
+              <div class="count">👥 참여자 <span id="count">0</span>명</div>
+              <div class="hint">ESC: 앞면 / Enter: 뒷면</div>
+            </div>
+            <div class="names" id="names"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Settings Panel -->
+      <aside class="panel" aria-label="설정 패널">
+        <h3>앞면 설정</h3>
+        <div class="field"><input id="titleInput" placeholder="이벤트 타이틀" /></div>
+        <div class="field"><input id="dateInput" placeholder="예: 2025-08-16" /></div>
+        <div class="field"><input id="watermarkInput" placeholder="워터마크(하단 우측)" /></div>
+        <div class="field"><input id="imageInput" placeholder="배경 이미지 URL (선택)" /></div>
+        <small>이미지는 외부 URL 또는 data URL 사용 가능. 비워두면 기본 이미지가 적용됩니다.</small>
+
+        <h3>참여자 입력</h3>
+        <div class="field"><textarea id="listInput" placeholder="한 줄에 하나씩 닉네임을 입력하거나 붙여넣기"></textarea></div>
+        <small>붙여넣은 명단은 자동으로 정렬·중복 제거됩니다. 저장 시 로컬에 보관됩니다.</small>
+
+        <div class="actions">
+          <button class="btn" id="loadDemo">데모 불러오기</button>
+          <button class="btn ghost" id="clearAll">초기화</button>
+          <button class="btn primary" id="save">저장</button>
+        </div>
+
+        <h3>공유 · 배포</h3>
+        <div class="actions">
+          <button class="btn" id="exportUrl">공유 링크 생성</button>
+          <button class="btn" id="exportCardOnlyUrl">카드 전용 링크</button>
+          <button class="btn" id="exportHtmlCard">카드 HTML 저장</button>
+          <button class="btn" id="exportHtmlEditor">에디터 HTML 저장</button>
+        </div>
+
+        <h3>GitHub Pages 설정</h3>
+        <div class="field"><input id="ghOwner" placeholder="Owner (예: yourname)" /></div>
+        <div class="field"><input id="ghRepo" placeholder="Repo (예: cards-archive)" /></div>
+        <div class="field"><input id="ghBranch" placeholder="Branch (기본 gh-pages)" value="gh-pages" /></div>
+        <div class="field"><input id="ghToken" placeholder="GitHub Personal Access Token (repo:contents 권한) — 로컬에만 저장" /></div>
+        <div class="field"><input id="discordWebhook" placeholder="Discord Webhook URL (선택) — 로컬에만 저장" /></div>
+        <small>토큰/웹훅 URL은 브라우저 로컬에만 저장되며, 내보내기된 카드/뷰어 파일에는 포함되지 않습니다.</small>
+        <div class="actions">
+          <button class="btn primary" id="deployGithub">GitHub에 배포 & (선택) 디스코드 공지</button>
+          <button class="btn" id="saveGhConfig">설정 저장</button>
+          <button class="btn ghost" id="clearGhConfig">설정 초기화</button>
+        </div>
+        <small>배포 시 /cards/슬러그.html, history.json, index.html(없으면 생성)이 갱신됩니다. Pages는 https://<owner>.github.io/<repo>/ 로 서비스됩니다.</small>
+
+        <div class="actions">
+          <button class="btn" id="runDiag">진단 실행</button>
+        </div>
+      </aside>
+    </div>
+
+    <div class="footer">© 2025 Flip Card 참여보드 — made for Discord/웹 공유. 오프라인/정적 호스팅 동작.</div>
+  </div>
+
+  <!-- Copy Modal -->\  <div id="copyModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="copyTitle">
+    <div class="modal-card">
+      <h3 id="copyTitle">공유 링크</h3>
+      <input id="copyField" readonly />
+      <div class="modal-actions">
+        <button class="btn primary" id="tryCopyBtn">클립보드 복사</button>
+        <button class="btn" id="selectBtn">전체 선택</button>
+        <button class="btn" id="shareBtn">시스템 공유</button>
+        <button class="btn ghost" id="closeModal">닫기</button>
+      </div>
+      <div id="copyStatus" class="status">버튼을 눌러 복사하거나, 선택 후 Ctrl/Cmd+C로 복사하세요.</div>
+    </div>
+  </div>
+
+  <script>
+    const $ = sel => document.querySelector(sel);
+    const card = $('#card');
+    const namesEl = $('#names');
+    const countEl = $('#count');
+    const badgeCount = $('#badgeCount');
+    const front = $('#front');
+
+    const titleInput = $('#titleInput');
+    const dateInput = $('#dateInput');
+    const wmInput = $('#watermarkInput');
+    const imgInput = $('#imageInput');
+    const listInput = $('#listInput');
+
+    const frontTitle = $('#frontTitle');
+    const watermark = $('#watermark');
+
+    // GitHub/Discord inputs
+    const ghOwner = $('#ghOwner');
+    const ghRepo = $('#ghRepo');
+    const ghBranch = $('#ghBranch');
+    const ghToken = $('#ghToken');
+    const discordWebhook = $('#discordWebhook');
+
+    const storeKey = 'flip-card-participation-v1';
+    const storeGhKey = 'flip-card-gh-config-v1';
+    let viewMode = 'edit'; // 'edit' | 'card'
+
+    function sanitize(list){
+      return Array.from(new Set(list.map(x=>x.trim()).filter(x=>x.length>0))).sort((a,b)=>a.localeCompare(b,'ko'));
+    }
+
+    function render(list){
+      namesEl.innerHTML = '';
+      list.forEach(name=>{
+        const pill = document.createElement('span');
+        pill.className = 'pill';
+        pill.textContent = name;
+        namesEl.appendChild(pill);
+      });
+      countEl.textContent = list.length;
+      badgeCount.textContent = `👥 참여 ${list.length}`;
+    }
+
+    function save(){
+      if(viewMode==='card') return; // viewer 모드에서 입력 무시
+      const data = {
+        title: titleInput.value.trim() || '이벤트 타이틀 예시 : 보스 토벌전',
+        date: dateInput.value.trim() || new Date().toISOString().slice(0,10),
+        water: wmInput.value.trim() || '@YourCommunity',
+        img: imgInput.value.trim(),
+        list: sanitize(listInput.value.split(/\n|,|;/))
+      };
+      localStorage.setItem(storeKey, JSON.stringify(data));
+      apply(data);
+    }
+
+    function apply(data){
+      frontTitle.textContent = data.title;
+      watermark.textContent = data.water;
+      if(data.date){ const dateBadge = front.querySelector('.badge'); if(dateBadge) dateBadge.textContent = `📅 ${data.date}`; }
+      if(data.img){ front.style.backgroundImage = `url('${data.img}')`; }
+      else { front.style.backgroundImage = "url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1400&auto=format&fit=crop')"; }
+      render(data.list||[]);
+    }
+
+    function load(){
+      const raw = localStorage.getItem(storeKey);
+      if(raw){ try{const data = JSON.parse(raw); fillInputs(data); apply(data);}catch(e){} }
+      const rawGh = localStorage.getItem(storeGhKey);
+      if(rawGh){ try{const c = JSON.parse(rawGh); ghOwner.value=c.owner||''; ghRepo.value=c.repo||''; ghBranch.value=c.branch||'gh-pages'; ghToken.value=c.token||''; discordWebhook.value=c.webhook||'';}catch(e){} }
+    }
+
+    function fillInputs(data){
+      titleInput.value = data.title || '';
+      dateInput.value = data.date || '';
+      wmInput.value = data.water || '';
+      imgInput.value = data.img || '';
+      listInput.value = (data.list||[]).join('\n');
+    }
+
+    function buildPayload(){
+      return { t: titleInput.value.trim(), d: dateInput.value.trim(), w: wmInput.value.trim(), i: imgInput.value.trim(), l: sanitize(listInput.value.split(/\n|,|;/)) };
+    }
+
+    function encodeToUrl(opts={}){
+      const payload = buildPayload();
+      const q = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload)))));
+      const u = new URL(location.href);
+      u.searchParams.set('q', q);
+      if(opts.view==='card') u.searchParams.set('view','card'); else u.searchParams.delete('view');
+      u.hash = '';
+      return u.origin + u.pathname + '?' + u.searchParams.toString();
+    }
+
+    function decodeFromUrl(){
+      const u = new URL(location.href);
+      const q = u.searchParams.get('q');
+      viewMode = u.searchParams.get('view')==='card' ? 'card' : 'edit';
+      if(!q){
+        const emb = loadEmbedded();
+        if(emb){ if(emb.view==='card') setCardOnlyMode(true); fillInputs(emb.data); apply(emb.data); return emb.data; }
+      }
+      if(viewMode==='card') setCardOnlyMode(true);
+      if(!q) return null;
+      try{
+        const obj = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(q)))));
+        const data = { title: obj.t||'', date: obj.d||'', water: obj.w||'', img: obj.i||'', list: obj.l||[] };
+        fillInputs(data); apply(data); if(viewMode!=='card') localStorage.setItem(storeKey, JSON.stringify(data));
+        return data;
+      }catch(e){ console.warn('링크 파싱 실패', e); return null; }
+    }
+
+    // Embedded data loader (for exported HTML)
+    function loadEmbedded(){
+      try{
+        const s = document.getElementById('__EMBEDDED_DATA__');
+        if(!s) return null;
+        const obj = JSON.parse(s.textContent||'{}');
+        return { view: obj.view||'card', data: { title: obj.t||'', date: obj.d||'', water: obj.w||'', img: obj.i||'', list: obj.l||[] } };
+      }catch(e){ return null; }
+    }
+
+    // Viewer mode: hide panel, disable inputs
+    function setCardOnlyMode(on){
+      document.body.classList.toggle('card-only', !!on);
+      const inputs = document.querySelectorAll('.panel input, .panel textarea, .panel button');
+      inputs.forEach(el=>{ el.disabled = !!on; });
+    }
+
+    // -------- Clipboard-safe helpers --------
+    function openCopyModal(text){
+      const modal = $('#copyModal'); const field = $('#copyField'); const status = $('#copyStatus');
+      field.value = text; modal.classList.remove('hidden'); field.focus(); field.select();
+      safeCopy(text)
+        .then(ok=>{ status.textContent = ok ? '복사 완료! 다른 곳에 붙여넣기 하세요.' : '클립보드 권한 제한으로 자동 복사 실패. 아래 버튼으로 수동 복사하세요.'; })
+        .catch(()=>{ status.textContent = '자동 복사에 실패했습니다. 전체 선택 후 Ctrl/Cmd+C로 복사하세요.'; });
+    }
+
+    async function safeCopy(text){
+      try{ if(navigator.clipboard && window.isSecureContext){ await navigator.clipboard.writeText(text); return true; } }catch(e){}
+      try{ const ta = document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.focus(); ta.select(); const ok=document.execCommand('copy'); document.body.removeChild(ta); return ok; }catch(e){ return false; }
+    }
+
+    // -------- Standalone HTML (string) with OG --------
+    function buildCardHtmlString(options={view:'card'}){
+      const payload = buildPayload();
+      const ogTitle = payload.t || 'Flip Card';
+      const ogDesc = `${payload.d||''} · 참여 ${payload.l.length}명`;
+      const ogImg = payload.i || '';
+
+      const doc = document.documentElement.cloneNode(true);
+      if(options.view==='card') doc.querySelector('body').classList.add('card-only');
+      const script = doc.ownerDocument.createElement('script');
+      script.type = 'application/json'; script.id = '__EMBEDDED_DATA__';
+      script.textContent = JSON.stringify({ view: options.view, ...payload });
+      doc.querySelector('body').appendChild(script);
+      // Inject OG into <head>
+      const head = doc.querySelector('head');
+      const metas = [
+        ['meta',{property:'og:title',content:ogTitle}],
+        ['meta',{property:'og:description',content:ogDesc}],
+        ['meta',{property:'og:type',content:'website'}],
+      ];
+      if(ogImg){ metas.push(['meta',{property:'og:image',content:ogImg}]); }
+      metas.forEach(([tag,attrs])=>{ const m=doc.ownerDocument.createElement(tag); Object.entries(attrs).forEach(([k,v])=>m.setAttribute(k,v)); head.appendChild(m); });
+
+      return '<!DOCTYPE html>\n' + doc.outerHTML;
+    }
+
+    function exportStandalone(options={view:'card'}){
+      const html = buildCardHtmlString(options);
+      const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const base = (titleInput.value.trim() || 'flip-card').replace(/[^\w가-힣\-_. ]+/g,'').slice(0,60).trim() || 'flip-card';
+      a.download = options.view==='card' ? `${base}-card.html` : `${base}-editor.html`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+    }
+
+    // -------- GitHub API helpers --------
+    function b64(text){ return btoa(unescape(encodeURIComponent(text))); }
+    function slugify(str){ return (str||'card').toLowerCase().replace(/[^\w가-힣\- ]+/g,'').trim().replace(/\s+/g,'-').slice(0,80) || 'card'; }
+
+    async function ghGet(path){
+      const url = `https://api.github.com/repos/${ghOwner.value}/${ghRepo.value}/contents/${path}?ref=${ghBranch.value}`;
+      const res = await fetch(url, { headers: { 'Authorization': `token ${ghToken.value}`, 'Accept':'application/vnd.github+json' } });
+      if(res.status===404) return null; if(!res.ok) throw new Error(`GET ${path} ${res.status}`); return res.json();
+    }
+
+    async function ghPut(path, content, message){
+      const get = await ghGet(path); const sha = get && get.sha;
+      const url = `https://api.github.com/repos/${ghOwner.value}/${ghRepo.value}/contents/${path}`;
+      const body = { message, content: b64(content), branch: ghBranch.value }; if(sha) body.sha = sha;
+      const res = await fetch(url, { method:'PUT', headers:{ 'Authorization': `token ${ghToken.value}`, 'Accept':'application/vnd.github+json' }, body: JSON.stringify(body) });
+      if(!res.ok) throw new Error(`PUT ${path} ${res.status}`); return res.json();
+    }
+
+    function computeBaseUrl(){
+      return `https://${ghOwner.value}.github.io/${ghRepo.value}`;
+    }
+
+    const viewerTemplate = () => `<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>카드 뷰어</title>
+<style>body{margin:0;background:#0b0d10;color:#e8f0ff;font-family:ui-sans-serif,system-ui;-webkit-font-smoothing:antialiased} .layout{display:grid;grid-template-columns:300px 1fr;min-height:100vh} aside{background:#0f141c;border-right:1px solid #1a2230;padding:12px} main{display:grid;place-items:center;padding:12px} h1{font-size:16px;margin:8px 8px 12px;color:#cfe1ff} .item{display:flex;gap:8px;align-items:center;padding:8px;margin:6px;border:1px solid #1a2230;border-radius:10px;background:#0b0f15;cursor:pointer} .item:hover{border-color:#2a3952} .thumb{width:48px;height:32px;background:#111;border-radius:6px;background-size:cover;background-position:center} .meta{display:flex;flex-direction:column;font-size:12px} .meta .t{font-weight:700} iframe{width:1028px;max-width:95vw;height:720px;border:0;border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,.35);background:#111} .footer{color:#9fb3cc;font-size:12px;text-align:center;padding:8px;border-top:1px solid #1a2230}</style>
+</head><body>
+<div class="layout">
+  <aside>
+    <h1>카드 히스토리</h1>
+    <div id="list"></div>
+    <div class="footer">© 카드 뷰어</div>
+  </aside>
+  <main>
+    <iframe id="viewer" title="카드 미리보기"></iframe>
+  </main>
+</div>
+<script>
+(async function(){
+  async function loadHistory(){
+    const res = await fetch('history.json', {cache:'no-cache'}); if(!res.ok) throw new Error('history.json 로드 실패'); return res.json();
+  }
+  const listEl = document.getElementById('list'); const frame = document.getElementById('viewer');
+  const hist = await loadHistory();
+  function render(items){ listEl.innerHTML=''; items.forEach((it,idx)=>{ const d=document.createElement('div'); d.className='item'; d.innerHTML=\`<div class="thumb" style="background-image:url(\'\${it.image||''}\')"></div><div class="meta"><div class="t">\${it.title}</div><div>\${it.date} · 참여 \${it.count}명</div></div>\`; d.addEventListener('click',()=>{ frame.src = it.url; }); listEl.appendChild(d); if(idx===0){ frame.src = it.url; } }); }
+  render(hist);
+})();
+</script>
+</body></html>`;
+
+    async function deployToGithub(){
+      // validations
+      if(!ghOwner.value || !ghRepo.value || !ghBranch.value || !ghToken.value){ alert('GitHub 설정을 모두 입력하세요.'); return; }
+      const payload = buildPayload();
+      const date = payload.d || new Date().toISOString().slice(0,10);
+      const slug = `${date}-${slugify(payload.t||'card')}`;
+      const cardHtml = buildCardHtmlString({view:'card'});
+
+      // 1) push card file
+      const cardPath = `cards/${slug}.html`;
+      await ghPut(cardPath, cardHtml, `feat(card): ${slug}`);
+
+      // 2) update history.json
+      const baseUrl = computeBaseUrl();
+      const cardUrl = `${baseUrl}/${cardPath}`;
+      let hist = [];
+      const existed = await ghGet('history.json');
+      if(existed && existed.content){ try{ hist = JSON.parse(decodeURIComponent(escape(atob(existed.content)))); }catch(e){ hist = []; } }
+      const entry = { id: slug, title: payload.t||'무제', date, image: payload.i||'', count: payload.l.length, url: cardUrl, createdAt: new Date().toISOString() };
+      // de-dup by id then unshift
+      hist = [entry, ...hist.filter(x=>x.id!==entry.id)];
+      await ghPut('history.json', JSON.stringify(hist, null, 2), `chore(history): add ${slug}`);
+
+      // 3) ensure viewer index.html exists
+      const idx = await ghGet('index.html');
+      if(!idx){ await ghPut('index.html', viewerTemplate(), 'chore(viewer): bootstrap index'); }
+
+      // 4) optional discord webhook
+      if(discordWebhook.value){ try{ await fetch(discordWebhook.value, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ content: `새 카드 등록: ${payload.t}\n보기: ${cardUrl}\n전체 히스토리: ${baseUrl}/` }) }); }catch(e){} }
+
+      alert(`배포 완료!\n카드: ${cardUrl}\n히스토리: ${baseUrl}/`);
+    }
+
+    // Demo data
+    const demo = { title:'결사 주간 레이드 : 절대자 공략', date: new Date().toISOString().slice(0,10), water:'@TheWind Guild', img:'', list:['노루','소안','윈둥이','아톰','아오키지','무츠','루미','라티','칸나','시온','에리카','진','라그','카일','메이','핀','로웰','세라','하카','도윤'] };
+
+    // Events
+    $('#flip').addEventListener('click', ()=> card.classList.toggle('is-flipped'));
+    card.addEventListener('click', ()=> card.classList.toggle('is-flipped'));
+    card.addEventListener('keydown', (e)=>{ if(e.key==='Enter') card.classList.add('is-flipped'); if(e.key==='Escape') card.classList.remove('is-flipped'); });
+
+    $('#save').addEventListener('click', save);
+    $('#clearAll').addEventListener('click', ()=>{ if(viewMode==='card') return; localStorage.removeItem(storeKey); location.reload(); });
+    $('#loadDemo').addEventListener('click', ()=>{ if(viewMode==='card') return; fillInputs(demo); apply(demo); localStorage.setItem(storeKey, JSON.stringify(demo));});
+
+    // Sharing
+    $('#exportUrl').addEventListener('click', ()=>{ const url = encodeToUrl({view:'edit'}); openCopyModal(url); });
+    $('#exportCardOnlyUrl').addEventListener('click', ()=>{ const url = encodeToUrl({view:'card'}); openCopyModal(url); });
+    $('#exportHtmlCard').addEventListener('click', ()=> exportStandalone({view:'card'}) );
+    $('#exportHtmlEditor').addEventListener('click', ()=> exportStandalone({view:'edit'}) );
+
+    // GitHub config
+    $('#saveGhConfig').addEventListener('click', ()=>{ localStorage.setItem(storeGhKey, JSON.stringify({ owner: ghOwner.value.trim(), repo: ghRepo.value.trim(), branch: ghBranch.value.trim()||'gh-pages', token: ghToken.value.trim(), webhook: discordWebhook.value.trim() })); alert('GitHub/웹훅 설정 저장됨(로컬)'); });
+    $('#clearGhConfig').addEventListener('click', ()=>{ localStorage.removeItem(storeGhKey); ghOwner.value=''; ghRepo.value=''; ghBranch.value='gh-pages'; ghToken.value=''; discordWebhook.value=''; alert('설정이 초기화되었습니다.'); });
+    $('#deployGithub').addEventListener('click', deployToGithub);
+
+    // Modal events
+    $('#tryCopyBtn').addEventListener('click', async ()=>{ const url = $('#copyField').value; const ok = await safeCopy(url); $('#copyStatus').textContent = ok ? '복사 완료! 다른 곳에 붙여넣기 하세요.' : '복사 실패. 전체 선택 후 Ctrl/Cmd+C로 복사하세요.'; });
+    $('#selectBtn').addEventListener('click', ()=>{ const f=$('#copyField'); f.focus(); f.select(); });
+    $('#closeModal').addEventListener('click', ()=> $('#copyModal').classList.add('hidden'));
+    $('#shareBtn').addEventListener('click', async ()=>{ const url = $('#copyField').value; if(navigator.share){ try{ await navigator.share({title:'Flip Card 참여보드', text:'공유 링크', url}); }catch(e){} } else { $('#copyStatus').textContent = '이 브라우저는 시스템 공유를 지원하지 않습니다. 복사 기능을 이용하세요.'; } });
+
+    // Diagnostics / Test cases
+    function logDiag(msg){ console.log(msg); alert(msg); }
+    function runDiagnostics(){
+      // 1) URL encode/decode roundtrip
+      let ok1=false; try{ const payload=buildPayload(); const url=encodeToUrl({view:'edit'}); const q=new URL(url).searchParams.get('q'); const obj=JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(q))))); ok1 = JSON.stringify({t:payload.t,d:payload.d,w:payload.w,i:payload.i,l:payload.l})===JSON.stringify(obj); }catch(e){}
+      // 2) localStorage R/W
+      let ok2=false; try{ const k='__test_'+Math.random(); localStorage.setItem(k,'1'); ok2 = localStorage.getItem(k)==='1'; localStorage.removeItem(k);}catch(e){}
+      // 3) Embedded export sample
+      let ok3=false; try{ const html=buildCardHtmlString({view:'card'}); ok3 = html.includes('__EMBEDDED_DATA__'); }catch(e){}
+      // 4) GitHub config present
+      const ok4 = !!(ghOwner.value && ghRepo.value && ghBranch.value && ghToken.value);
+      logDiag(`진단 결과:\n1) 링크 인코딩/디코딩: ${ok1?'OK':'FAIL'}\n2) 로컬 저장소: ${ok2?'OK':'FAIL'}\n3) 내보내기(임베드) 생성: ${ok3?'OK':'FAIL'}\n4) GitHub 설정 입력됨: ${ok4?'OK':'미입력'}`);
+    }
+    $('#runDiag').addEventListener('click', runDiagnostics);
+
+    // First load
+    if(!decodeFromUrl()) load();
+  </script>
+</body>
+</html>
