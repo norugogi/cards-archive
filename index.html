@@ -160,7 +160,7 @@
     <div class="footer">© 2025 Flip Card 참여보드 — made for Discord/웹 공유. 오프라인/정적 호스팅 동작.</div>
   </div>
 
-  <!-- Copy Modal -->\  <div id="copyModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="copyTitle">
+  <!-- Copy Modal -->  <div id="copyModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="copyTitle">
     <div class="modal-card">
       <h3 id="copyTitle">공유 링크</h3>
       <input id="copyField" readonly />
@@ -402,7 +402,7 @@
   function render(items){ listEl.innerHTML=''; items.forEach((it,idx)=>{ const d=document.createElement('div'); d.className='item'; d.innerHTML=\`<div class="thumb" style="background-image:url(\'\${it.image||''}\')"></div><div class="meta"><div class="t">\${it.title}</div><div>\${it.date} · 참여 \${it.count}명</div></div>\`; d.addEventListener('click',()=>{ frame.src = it.url; }); listEl.appendChild(d); if(idx===0){ frame.src = it.url; } }); }
   render(hist);
 })();
-</script>
+<\/script>
 </body></html>`;
 
     async function deployToGithub(){
