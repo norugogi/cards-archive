@@ -60,6 +60,15 @@
     /* Scrollbar aesthetics */
     .names::-webkit-scrollbar{height:12px;width:12px}
     .names::-webkit-scrollbar-thumb{background:#1a2433;border-radius:999px;border:3px solid transparent;background-clip:padding-box}
+  /* History drawer (card-only mode) */
+    .histBtn{position:fixed;left:16px;bottom:16px;z-index:60;background:#0c121a;border:1px solid #1b2433;color:#dbe7ff;padding:10px 12px;border-radius:12px;cursor:pointer;font-weight:800;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+    .histBtn:hover{border-color:#2a3952}
+    .histPanel{position:fixed;left:16px;bottom:64px;z-index:60;width:min(420px,95vw);max-height:min(60vh,520px);overflow:auto;background:linear-gradient(180deg,#10151d,#0f141c);border:1px solid #1a2230;border-radius:14px;box-shadow:0 24px 64px rgba(0,0,0,.45);padding:12px;display:none}
+    .histPanel.open{display:block}
+    .histItem{display:flex;gap:10px;align-items:center;padding:10px;margin:6px 0;border:1px solid #1a2230;border-radius:10px;background:#0b0f15;cursor:pointer}
+    .histItem:hover{border-color:#2a3952}
+    .histItem .meta{display:flex;flex-direction:column;font-size:12px}
+    .histItem .meta .t{font-weight:800}
   </style>
 </head>
 <body>
@@ -446,6 +455,55 @@
         var rawGh = localStorage.getItem(storeGhKey); if(rawGh){ try{ var c=JSON.parse(rawGh); ghOwner.value=c.owner||''; ghRepo.value=c.repo||''; ghBranch.value=c.branch||'main'; ghToken.value=c.token||''; discordWebhook.value=c.webhook||''; }catch(e){} }
       }
     }
+  })();
+  </script>
+<!-- History toggle UI (shown only in card-only mode) -->
+  <button id="histBtn" class="histBtn" style="display:none">📚 지난 카드</button>
+  <div id="histPanel" class="histPanel" role="dialog" aria-label="지난 카드 목록">
+    <div id="histList"></div>
+  </div>
+
+  <script>
+  // History drawer initializer — only for card-only pages
+  (function(){
+    if (!document.body.classList.contains('card-only')) return; // editor에서는 숨김
+    var histBtn = document.getElementById('histBtn');
+    var histPanel = document.getElementById('histPanel');
+    var histList = document.getElementById('histList');
+    if(!histBtn || !histPanel || !histList) return;
+
+    function historyJsonUrl(){
+      // /cards/slug.html 기준 ../history.json 을 자동 계산
+      try{ return new URL('../history.json', location.href).toString(); }
+      catch(e){ return location.origin + '/history.json'; }
+    }
+    function fetchHistory(){
+      return fetch(historyJsonUrl(), {cache:'no-cache'})
+        .then(function(res){ if(!res.ok) throw new Error('history.json 로드 실패'); return res.json(); });
+    }
+    function renderHistory(items){
+      histList.innerHTML = '';
+      try{ items.sort(function(a,b){ return (b.createdAt||b.date||'').localeCompare(a.createdAt||a.date||''); }); }catch(e){}
+      for(var i=0;i<items.length;i++){
+        var it = items[i];
+        var div = document.createElement('div');
+        div.className = 'histItem';
+        div.innerHTML = '<div class="meta">'
+          + '<div class="t">' + (it.title||'') + '</div>'
+          + '<div>' + (it.date||'') + ' · 참여 ' + (it.count||0) + '명</div>'
+          + '</div>';
+        (function(url){ div.addEventListener('click', function(){ location.href = url; }); })(it.url);
+        histList.appendChild(div);
+      }
+    }
+
+    histBtn.style.display = 'block';
+    histBtn.addEventListener('click', function(){
+      if (histPanel.classList.contains('open')){ histPanel.classList.remove('open'); return; }
+      fetchHistory().then(renderHistory).then(function(){ histPanel.classList.add('open'); })
+        .catch(function(e){ alert('히스토리를 불러오지 못했습니다: ' + e); });
+    });
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape') histPanel.classList.remove('open'); });
   })();
   </script>
 </body>
