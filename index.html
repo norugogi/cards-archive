@@ -203,6 +203,11 @@
     const storeGhKey = 'flip-card-gh-config-v1';
     let viewMode = 'edit'; // 'edit' | 'card'
 
+    // localStorage 가 사용 가능한지 확인 (Safari 프라이빗/3rd-party iframe 대비)
+    function storageAvailable(){
+      try{ const k='__ls_test__'+Math.random(); localStorage.setItem(k,'1'); localStorage.removeItem(k); return true; }catch(e){ return false; }
+    }| 'card'
+
     function sanitize(list){
       return Array.from(new Set(list.map(x=>x.trim()).filter(x=>x.length>0))).sort((a,b)=>a.localeCompare(b,'ko'));
     }
@@ -228,6 +233,11 @@
         img: imgInput.value.trim(),
         list: sanitize(listInput.value.split(/\n|,|;/))
       };
+      if(storageAvailable()){
+        try{ localStorage.setItem(storeKey, JSON.stringify(data)); }catch(e){ console.warn('localStorage save failed', e); }
+      }
+      apply(data);
+    };
       localStorage.setItem(storeKey, JSON.stringify(data));
       apply(data);
     }
@@ -242,8 +252,13 @@
     }
 
     function load(){
-      const raw = localStorage.getItem(storeKey);
-      if(raw){ try{const data = JSON.parse(raw); fillInputs(data); apply(data);}catch(e){} }
+      if(storageAvailable()){
+        const raw = localStorage.getItem(storeKey);
+        if(raw){ try{const data = JSON.parse(raw); fillInputs(data); apply(data);}catch(e){ console.warn('localStorage parse fail', e); } }
+        const rawGh = localStorage.getItem(storeGhKey);
+        if(rawGh){ try{const c = JSON.parse(rawGh); ghOwner.value=c.owner||''; ghRepo.value=c.repo||''; ghBranch.value=c.branch||'main'; ghToken.value=c.token||''; discordWebhook.value=c.webhook||'';}catch(e){ console.warn('gh config parse fail', e); } }
+      }
+    }catch(e){} }
       const rawGh = localStorage.getItem(storeGhKey);
       if(rawGh){ try{const c = JSON.parse(rawGh); ghOwner.value=c.owner||''; ghRepo.value=c.repo||''; ghBranch.value=c.branch||'main'; ghToken.value=c.token||''; discordWebhook.value=c.webhook||'';}catch(e){} }
     }
@@ -303,6 +318,18 @@
       document.body.classList.toggle('card-only', !!on);
       const inputs = document.querySelectorAll('.panel input, .panel textarea, .panel button');
       inputs.forEach(el=>{ el.disabled = !!on; });
+    }
+
+    // 실시간 미리보기: 입력 변화 즉시 앞면/뒷면 갱신
+    ['input','change'].forEach(evt=>{
+      [titleInput, dateInput, wmInput, imgInput, listInput].forEach(el=>{
+        el.addEventListener(evt, ()=>{
+          if(viewMode==='card') return;
+          const d={ title:titleInput.value, date:dateInput.value, water:wmInput.value, img:imgInput.value, list:sanitize(listInput.value.split(/\n|,|;/)) };
+          apply(d);
+        });
+      });
+    }););
     }
 
     // -------- Clipboard-safe helpers --------
@@ -458,8 +485,18 @@
     $('#exportHtmlEditor').addEventListener('click', ()=> exportStandalone({view:'edit'}) );
 
     // GitHub config
-    $('#saveGhConfig').addEventListener('click', ()=>{ localStorage.setItem(storeGhKey, JSON.stringify({ owner: ghOwner.value.trim(), repo: ghRepo.value.trim(), branch: ghBranch.value.trim()||'main', token: ghToken.value.trim(), webhook: discordWebhook.value.trim() })); alert('GitHub/웹훅 설정 저장됨(로컬)'); });
-    $('#clearGhConfig').addEventListener('click', ()=>{ localStorage.removeItem(storeGhKey); ghOwner.value=''; ghRepo.value=''; ghBranch.value='main'; ghToken.value=''; discordWebhook.value=''; alert('설정이 초기화되었습니다.'); });
+    $('#saveGhConfig').addEventListener('click', ()=>{
+      const cfg = { owner: ghOwner.value.trim(), repo: ghRepo.value.trim(), branch: ghBranch.value.trim()||'main', token: ghToken.value.trim(), webhook: discordWebhook.value.trim() };
+      if(storageAvailable()){
+        try{ localStorage.setItem(storeGhKey, JSON.stringify(cfg)); }catch(e){ alert('브라우저 저장소 접근이 차단되어 설정을 저장할 수 없습니다.'); return; }
+      }
+      alert('GitHub/웹훅 설정 저장됨(로컬)');
+    }); alert('GitHub/웹훅 설정 저장됨(로컬)'); });
+    $('#clearGhConfig').addEventListener('click', ()=>{
+      if(storageAvailable()) localStorage.removeItem(storeGhKey);
+      ghOwner.value=''; ghRepo.value=''; ghBranch.value='main'; ghToken.value=''; discordWebhook.value='';
+      alert('설정이 초기화되었습니다.');
+    }); ghOwner.value=''; ghRepo.value=''; ghBranch.value='main'; ghToken.value=''; discordWebhook.value=''; alert('설정이 초기화되었습니다.'); });
     $('#deployGithub').addEventListener('click', deployToGithub);
 
     // Modal events
