@@ -56,7 +56,7 @@
     .hidden{display:none}
     .modal-card{width:min(560px, 92vw); background:linear-gradient(180deg,#10151d,#0f141c); border:1px solid #1a2230; border-radius:16px; box-shadow:var(--shadow); padding:16px}
     .modal-card h3{margin:0 0 10px; font-size:16px; color:#cfe1ff}
-    .modal-card input{width:100%; background:#0b0f15; border:1px solid #1b2433; color:#e8f0ff; border-radius:10px; padding:10px 12px}
+    .modal-card input{width:100%; background:#0b0f15; border:1px solid #1b2433; color:var(--ink); border-radius:10px; padding:10px 12px}
     .modal-actions{display:flex; gap:8px; margin-top:12px}
     .modal-actions .btn{flex:unset}
     .status{margin-top:8px; color:#9fb3cc; font-size:12px}
@@ -138,11 +138,11 @@
         </div>
 
         <h3>GitHub Pages 설정</h3>
-        <div class="field"><input id="ghOwner" placeholder="Owner (예: yourname)" /></div>
+        <div class="field"><input id="ghOwner" placeholder="Owner (예: norugogi)" /></div>
         <div class="field"><input id="ghRepo" placeholder="Repo (예: cards-archive)" /></div>
-        <div class="field"><input id="ghBranch" placeholder="Branch (기본 gh-pages)" value="gh-pages" /></div>
-        <div class="field"><input id="ghToken" placeholder="GitHub Personal Access Token (repo:contents 권한) — 로컬에만 저장" /></div>
-        <div class="field"><input id="discordWebhook" placeholder="Discord Webhook URL (선택) — 로컬에만 저장" /></div>
+        <div class="field"><input id="ghBranch" placeholder="Branch (main 또는 gh-pages)" value="main" /></div>
+        <div class="field"><input id="ghToken" placeholder="GitHub PAT — 로컬에만 저장" /></div>
+        <div class="field"><input id="discordWebhook" placeholder="Discord Webhook URL (선택) — 로컬 저장" /></div>
         <small>토큰/웹훅 URL은 브라우저 로컬에만 저장되며, 내보내기된 카드/뷰어 파일에는 포함되지 않습니다.</small>
         <div class="actions">
           <button class="btn primary" id="deployGithub">GitHub에 배포 & (선택) 디스코드 공지</button>
@@ -160,7 +160,8 @@
     <div class="footer">© 2025 Flip Card 참여보드 — made for Discord/웹 공유. 오프라인/정적 호스팅 동작.</div>
   </div>
 
-  <!-- Copy Modal -->  <div id="copyModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="copyTitle">
+  <!-- Copy Modal -->
+  <div id="copyModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="copyTitle">
     <div class="modal-card">
       <h3 id="copyTitle">공유 링크</h3>
       <input id="copyField" readonly />
@@ -244,7 +245,7 @@
       const raw = localStorage.getItem(storeKey);
       if(raw){ try{const data = JSON.parse(raw); fillInputs(data); apply(data);}catch(e){} }
       const rawGh = localStorage.getItem(storeGhKey);
-      if(rawGh){ try{const c = JSON.parse(rawGh); ghOwner.value=c.owner||''; ghRepo.value=c.repo||''; ghBranch.value=c.branch||'gh-pages'; ghToken.value=c.token||''; discordWebhook.value=c.webhook||'';}catch(e){} }
+      if(rawGh){ try{const c = JSON.parse(rawGh); ghOwner.value=c.owner||''; ghRepo.value=c.repo||''; ghBranch.value=c.branch||'main'; ghToken.value=c.token||''; discordWebhook.value=c.webhook||'';}catch(e){} }
     }
 
     function fillInputs(data){
@@ -399,7 +400,7 @@
   }
   const listEl = document.getElementById('list'); const frame = document.getElementById('viewer');
   const hist = await loadHistory();
-  function render(items){ listEl.innerHTML=''; items.forEach((it,idx)=>{ const d=document.createElement('div'); d.className='item'; d.innerHTML=\`<div class="thumb" style="background-image:url(\'\${it.image||''}\')"></div><div class="meta"><div class="t">\${it.title}</div><div>\${it.date} · 참여 \${it.count}명</div></div>\`; d.addEventListener('click',()=>{ frame.src = it.url; }); listEl.appendChild(d); if(idx===0){ frame.src = it.url; } }); }
+  function render(items){ listEl.innerHTML=''; items.forEach((it,idx)=>{ const d=document.createElement('div'); d.className='item'; d.innerHTML=`<div class="thumb" style="background-image:url('${it.image||''}')"></div><div class="meta"><div class="t">${it.title}</div><div>${it.date} · 참여 ${it.count}명</div></div>`; d.addEventListener('click',()=>{ frame.src = it.url; }); listEl.appendChild(d); if(idx===0){ frame.src = it.url; } }); }
   render(hist);
 })();
 <\/script>
@@ -457,8 +458,8 @@
     $('#exportHtmlEditor').addEventListener('click', ()=> exportStandalone({view:'edit'}) );
 
     // GitHub config
-    $('#saveGhConfig').addEventListener('click', ()=>{ localStorage.setItem(storeGhKey, JSON.stringify({ owner: ghOwner.value.trim(), repo: ghRepo.value.trim(), branch: ghBranch.value.trim()||'gh-pages', token: ghToken.value.trim(), webhook: discordWebhook.value.trim() })); alert('GitHub/웹훅 설정 저장됨(로컬)'); });
-    $('#clearGhConfig').addEventListener('click', ()=>{ localStorage.removeItem(storeGhKey); ghOwner.value=''; ghRepo.value=''; ghBranch.value='gh-pages'; ghToken.value=''; discordWebhook.value=''; alert('설정이 초기화되었습니다.'); });
+    $('#saveGhConfig').addEventListener('click', ()=>{ localStorage.setItem(storeGhKey, JSON.stringify({ owner: ghOwner.value.trim(), repo: ghRepo.value.trim(), branch: ghBranch.value.trim()||'main', token: ghToken.value.trim(), webhook: discordWebhook.value.trim() })); alert('GitHub/웹훅 설정 저장됨(로컬)'); });
+    $('#clearGhConfig').addEventListener('click', ()=>{ localStorage.removeItem(storeGhKey); ghOwner.value=''; ghRepo.value=''; ghBranch.value='main'; ghToken.value=''; discordWebhook.value=''; alert('설정이 초기화되었습니다.'); });
     $('#deployGithub').addEventListener('click', deployToGithub);
 
     // Modal events
