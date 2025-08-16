@@ -231,7 +231,8 @@
         date: dateInput.value.trim() || new Date().toISOString().slice(0,10),
         water: wmInput.value.trim() || '@YourCommunity',
         img: imgInput.value.trim(),
-        list: sanitize(listInput.value.split(/\n|,|;/))
+        list: sanitize(listInput.value.split(/
+|,|;/))
       };
       if(storageAvailable()){
         try{ localStorage.setItem(storeKey, JSON.stringify(data)); }catch(e){ console.warn('localStorage save failed', e); }
@@ -325,7 +326,8 @@
       [titleInput, dateInput, wmInput, imgInput, listInput].forEach(el=>{
         el.addEventListener(evt, ()=>{
           if(viewMode==='card') return;
-          const d={ title:titleInput.value, date:dateInput.value, water:wmInput.value, img:imgInput.value, list:sanitize(listInput.value.split(/\n|,|;/)) };
+          const d={ title:titleInput.value, date:dateInput.value, water:wmInput.value, img:imgInput.value, list:sanitize(listInput.value.split(/
+|,|;/)) };
           apply(d);
         });
       });
@@ -427,7 +429,11 @@
   }
   const listEl = document.getElementById('list'); const frame = document.getElementById('viewer');
   const hist = await loadHistory();
-  function render(items){ listEl.innerHTML=''; items.forEach((it,idx)=>{ const d=document.createElement('div'); d.className='item'; d.innerHTML=`<div class="thumb" style="background-image:url('${it.image||''}')"></div><div class="meta"><div class="t">${it.title}</div><div>${it.date} · 참여 ${it.count}명</div></div>`; d.addEventListener('click',()=>{ frame.src = it.url; }); listEl.appendChild(d); if(idx===0){ frame.src = it.url; } }); }
+  function render(items){ listEl.innerHTML=''; items.forEach((it,idx)=>{ const d=document.createElement('div'); d.className='item'; d.innerHTML=\`<div class="thumb" style="background-image:url('\${it.image||''}')"></div><div class="meta"><div class="t">\${it.title}</div><div>\${it.date} · 참여 \${it.count}명</div></div>\`; d.addEventListener('click',()=>{ frame.src = it.url; }); listEl.appendChild(d); if(idx===0){ frame.src = it.url; } }); }
+  render(hist);
+})();
+<\/script>
+</body></html>`; d.addEventListener('click',()=>{ frame.src = it.url; }); listEl.appendChild(d); if(idx===0){ frame.src = it.url; } }); }
   render(hist);
 })();
 <\/script>
