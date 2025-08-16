@@ -423,13 +423,27 @@
   </main>
 </div>
 <script>
-(async function(){
-  async function loadHistory(){
-    const res = await fetch('history.json', {cache:'no-cache'}); if(!res.ok) throw new Error('history.json 로드 실패'); return res.json();
+(function(){
+  function loadHistory(){
+    return fetch('history.json', {cache:'no-cache'}).then(function(res){ if(!res.ok) throw new Error('history.json 로드 실패'); return res.json(); });
   }
-  const listEl = document.getElementById('list'); const frame = document.getElementById('viewer');
-  const hist = await loadHistory();
-  function render(items){ listEl.innerHTML=''; items.forEach((it,idx)=>{ const d=document.createElement('div'); d.className='item'; d.innerHTML=\`<div class="thumb" style="background-image:url('\${it.image||''}')"></div><div class="meta"><div class="t">\${it.title}</div><div>\${it.date} · 참여 \${it.count}명</div></div>\`; d.addEventListener('click',()=>{ frame.src = it.url; }); listEl.appendChild(d); if(idx===0){ frame.src = it.url; } }); }
+  var listEl = document.getElementById('list'); var frame = document.getElementById('viewer');
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  loadHistory().then(function(hist){
+    listEl.innerHTML='';
+    hist.forEach(function(it,idx){
+      var d=document.createElement('div'); d.className='item';
+      var thumb = '<div class="thumb" style="background-image:url(' + JSON.stringify(it.image||'') + ')"></div>';
+      var meta  = '<div class="meta"><div class="t">' + esc(it.title||'') + '</div><div>' + (it.date||'') + ' · 참여 ' + (it.count||0) + '명</div></div>';
+      d.innerHTML = thumb + meta;
+      d.addEventListener('click', function(){ frame.src = it.url; });
+      listEl.appendChild(d);
+      if(idx===0){ frame.src = it.url; }
+    });
+  }).catch(function(err){ listEl.textContent='히스토리를 불러오지 못했습니다.'; console.error(err); });
+})();
+<\/script>
+</body></html>`; d.addEventListener('click',()=>{ frame.src = it.url; }); listEl.appendChild(d); if(idx===0){ frame.src = it.url; } }); }
   render(hist);
 })();
 <\/script>
