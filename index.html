@@ -51,16 +51,6 @@
     .flipBtn:hover{border-color:#2a3952}
     .footer{margin-top:14px; text-align:center; color:#8fa1b8; font-size:12px}
 
-    /* Modal */
-    .modal{position:fixed; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.45); z-index:50}
-    .hidden{display:none}
-    .modal-card{width:min(560px, 92vw); background:linear-gradient(180deg,#10151d,#0f141c); border:1px solid #1a2230; border-radius:16px; box-shadow:var(--shadow); padding:16px}
-    .modal-card h3{margin:0 0 10px; font-size:16px; color:#cfe1ff}
-    .modal-card input{width:100%; background:#0b0f15; border:1px solid #1b2433; color:var(--ink); border-radius:10px; padding:10px 12px}
-    .modal-actions{display:flex; gap:8px; margin-top:12px}
-    .modal-actions .btn{flex:unset}
-    .status{margin-top:8px; color:#9fb3cc; font-size:12px}
-
     /* Card-only (viewer) mode */
     body.card-only .board{grid-template-columns: 1fr}
     body.card-only .panel, body.card-only .actions, body.card-only .header .sub{display:none}
@@ -77,7 +67,7 @@
     <div class="header">
       <div>
         <div class="title">Flip Card 참여보드</div>
-        <div class="sub">카드를 클릭하면 뒷면에 참여자 목록이 나타납니다. (로컬 저장 지원 · GitHub Pages 배포 지원)</div>
+        <div class="sub">카드를 클릭하면 뒷면에 참여자 목록이 나타납니다. (로컬 저장 · GitHub Pages 배포)</div>
       </div>
       <div class="header-actions">
         <button id="flip" class="flipBtn" title="카드 뒤집기">카드 뒤집기 ↺</button>
@@ -91,7 +81,7 @@
           <div class="face front" id="front">
             <div class="frontTitle" id="frontTitle">이벤트 타이틀 예시 : 보스 토벌전</div>
             <div class="frontBadges" id="frontBadges">
-              <div class="badge">📅 2025-08-16</div>
+              <div class="badge" id="dateBadge">📅 2025-08-16</div>
               <div class="badge" id="badgeCount">👥 참여 0</div>
               <div class="badge">#주간챌린지</div>
             </div>
@@ -147,9 +137,10 @@
         <div class="actions">
           <button class="btn primary" id="deployGithub">GitHub에 배포 & (선택) 디스코드 공지</button>
           <button class="btn" id="saveGhConfig">설정 저장</button>
+          <button class="btn" id="testWebhook">웹훅 테스트</button>
           <button class="btn ghost" id="clearGhConfig">설정 초기화</button>
         </div>
-        <small>배포 시 /cards/슬러그.html, history.json, index.html(없으면 생성)이 갱신됩니다. Pages는 https://<owner>.github.io/<repo>/ 로 서비스됩니다.</small>
+        <small>배포 시 /cards/슬러그.html, history.json, index.html(정적 목록) 갱신됩니다. Pages는 https://<owner>.github.io/<repo>/ 로 서비스됩니다.</small>
 
         <div class="actions">
           <button class="btn" id="runDiag">진단 실행</button>
@@ -176,91 +167,68 @@
   </div>
 
   <script>
-    const $ = sel => document.querySelector(sel);
-    const card = $('#card');
-    const namesEl = $('#names');
-    const countEl = $('#count');
-    const badgeCount = $('#badgeCount');
-    const front = $('#front');
+  (function(){
+    var $ = function(sel){ return document.querySelector(sel); };
 
-    const titleInput = $('#titleInput');
-    const dateInput = $('#dateInput');
-    const wmInput = $('#watermarkInput');
-    const imgInput = $('#imageInput');
-    const listInput = $('#listInput');
+    var card = $('#card');
+    var namesEl = $('#names');
+    var countEl = $('#count');
+    var badgeCount = $('#badgeCount');
+    var front = $('#front');
 
-    const frontTitle = $('#frontTitle');
-    const watermark = $('#watermark');
+    var titleInput = $('#titleInput');
+    var dateInput = $('#dateInput');
+    var wmInput = $('#watermarkInput');
+    var imgInput = $('#imageInput');
+    var listInput = $('#listInput');
 
-    // GitHub/Discord inputs
-    const ghOwner = $('#ghOwner');
-    const ghRepo = $('#ghRepo');
-    const ghBranch = $('#ghBranch');
-    const ghToken = $('#ghToken');
-    const discordWebhook = $('#discordWebhook');
+    var frontTitle = $('#frontTitle');
+    var watermark = $('#watermark');
+    var dateBadge = $('#dateBadge');
 
-    const storeKey = 'flip-card-participation-v1';
-    const storeGhKey = 'flip-card-gh-config-v1';
-    let viewMode = 'edit'; // 'edit' | 'card'
+    var ghOwner = $('#ghOwner');
+    var ghRepo = $('#ghRepo');
+    var ghBranch = $('#ghBranch');
+    var ghToken = $('#ghToken');
+    var discordWebhook = $('#discordWebhook');
 
-    // localStorage 가 사용 가능한지 확인 (Safari 프라이빗/3rd-party iframe 대비)
+    var storeKey = 'flip-card-participation-v2';
+    var storeGhKey = 'flip-card-gh-config-v2';
+    var viewMode = 'edit';
+
     function storageAvailable(){
-      try{ const k='__ls_test__'+Math.random(); localStorage.setItem(k,'1'); localStorage.removeItem(k); return true; }catch(e){ return false; }
+      try{ var k='__ls_test__'+Math.random(); localStorage.setItem(k,'1'); localStorage.removeItem(k); return true; }catch(e){ return false; }
     }
 
     function sanitize(list){
-      return Array.from(new Set(list.map(x=>x.trim()).filter(x=>x.length>0))).sort((a,b)=>a.localeCompare(b,'ko'));
+      var arr = [];
+      for(var i=0;i<list.length;i++){ var x = (list[i]||'').trim(); if(x){ arr.push(x); } }
+      // de-dup
+      var map={}, out=[]; for(i=0;i<arr.length;i++){ var v=arr[i]; if(!map[v]){ map[v]=1; out.push(v);} }
+      // sort ko
+      out.sort(function(a,b){ return a.localeCompare(b,'ko'); });
+      return out;
     }
 
     function render(list){
       namesEl.innerHTML = '';
-      list.forEach(name=>{
-        const pill = document.createElement('span');
+      for(var i=0;i<list.length;i++){
+        var pill = document.createElement('span');
         pill.className = 'pill';
-        pill.textContent = name;
+        pill.textContent = list[i];
         namesEl.appendChild(pill);
-      });
-      countEl.textContent = list.length;
-      badgeCount.textContent = `👥 참여 ${list.length}`;
-    }
-
-    function save(){
-      if(viewMode==='card') return; // viewer 모드에서 입력 무시
-      const data = {
-        title: titleInput.value.trim() || '이벤트 타이틀 예시 : 보스 토벌전',
-        date: dateInput.value.trim() || new Date().toISOString().slice(0,10),
-        water: wmInput.value.trim() || '@YourCommunity',
-        img: imgInput.value.trim(),
-        list: sanitize(listInput.value.split(/|,|;/))
-      };
-      if(storageAvailable()){
-        try{ localStorage.setItem(storeKey, JSON.stringify(data)); }catch(e){ console.warn('localStorage save failed', e); }
       }
-      apply(data);
-    };
-      localStorage.setItem(storeKey, JSON.stringify(data));
-      apply(data);
+      countEl.textContent = String(list.length);
+      badgeCount.textContent = '👥 참여 ' + list.length;
     }
 
     function apply(data){
-      frontTitle.textContent = data.title;
-      watermark.textContent = data.water;
-      if(data.date){ const dateBadge = front.querySelector('.badge'); if(dateBadge) dateBadge.textContent = `📅 ${data.date}`; }
-      if(data.img){ front.style.backgroundImage = `url('${data.img}')`; }
+      frontTitle.textContent = data.title || '';
+      watermark.textContent = data.water || '';
+      if(data.date){ dateBadge.textContent = '📅 ' + data.date; }
+      if(data.img){ front.style.backgroundImage = "url('" + data.img.replace(/'/g,"\\'") + "')"; }
       else { front.style.backgroundImage = "url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1400&auto=format&fit=crop')"; }
       render(data.list||[]);
-    }
-
-    function load(){
-      if(storageAvailable()){
-        const raw = localStorage.getItem(storeKey);
-        if(raw){ try{const data = JSON.parse(raw); fillInputs(data); apply(data);}catch(e){ console.warn('localStorage parse fail', e); } }
-        const rawGh = localStorage.getItem(storeGhKey);
-        if(rawGh){ try{const c = JSON.parse(rawGh); ghOwner.value=c.owner||''; ghRepo.value=c.repo||''; ghBranch.value=c.branch||'main'; ghToken.value=c.token||''; discordWebhook.value=c.webhook||'';}catch(e){ console.warn('gh config parse fail', e); } }
-      }
-    }catch(e){} }
-      const rawGh = localStorage.getItem(storeGhKey);
-      if(rawGh){ try{const c = JSON.parse(rawGh); ghOwner.value=c.owner||''; ghRepo.value=c.repo||''; ghBranch.value=c.branch||'main'; ghToken.value=c.token||''; discordWebhook.value=c.webhook||'';}catch(e){} }
     }
 
     function fillInputs(data){
@@ -271,14 +239,36 @@
       listInput.value = (data.list||[]).join('\n');
     }
 
-    function buildPayload(){
-      return { t: titleInput.value.trim(), d: dateInput.value.trim(), w: wmInput.value.trim(), i: imgInput.value.trim(), l: sanitize(listInput.value.split(/\n|,|;/)) };
+    function save(){
+      if(viewMode==='card') return;
+      var data = {
+        title: (titleInput.value||'').trim() || '이벤트 타이틀 예시 : 보스 토벌전',
+        date: (dateInput.value||'').trim() || new Date().toISOString().slice(0,10),
+        water: (wmInput.value||'').trim() || '@YourCommunity',
+        img: (imgInput.value||'').trim(),
+        list: sanitize((listInput.value||'').split(/\n|,|;/))
+      };
+      if(storageAvailable()){
+        try{ localStorage.setItem(storeKey, JSON.stringify(data)); }catch(e){}
+      }
+      apply(data);
     }
 
-    function encodeToUrl(opts={}){
-      const payload = buildPayload();
-      const q = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload)))));
-      const u = new URL(location.href);
+    function buildPayload(){
+      return {
+        t: (titleInput.value||'').trim(),
+        d: (dateInput.value||'').trim(),
+        w: (wmInput.value||'').trim(),
+        i: (imgInput.value||'').trim(),
+        l: sanitize((listInput.value||'').split(/\n|,|;/))
+      };
+    }
+
+    function encodeToUrl(opts){
+      if(!opts) opts={};
+      var payload = buildPayload();
+      var q = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload)))));
+      var u = new URL(location.href);
       u.searchParams.set('q', q);
       if(opts.view==='card') u.searchParams.set('view','card'); else u.searchParams.delete('view');
       u.hash = '';
@@ -286,248 +276,191 @@
     }
 
     function decodeFromUrl(){
-      const u = new URL(location.href);
-      const q = u.searchParams.get('q');
-      viewMode = u.searchParams.get('view')==='card' ? 'card' : 'edit';
-      if(!q){
-        const emb = loadEmbedded();
-        if(emb){ if(emb.view==='card') setCardOnlyMode(true); fillInputs(emb.data); apply(emb.data); return emb.data; }
-      }
+      var u = new URL(location.href);
+      var q = u.searchParams.get('q');
+      viewMode = (u.searchParams.get('view')==='card') ? 'card' : 'edit';
       if(viewMode==='card') setCardOnlyMode(true);
-      if(!q) return null;
+      if(!q){
+        var emb = loadEmbedded();
+        if(emb){ if(emb.view==='card') setCardOnlyMode(true); fillInputs(emb.data); apply(emb.data); return emb.data; }
+        if(storageAvailable()){
+          var raw = localStorage.getItem(storeKey);
+          if(raw){ try{ var dat = JSON.parse(raw); fillInputs(dat); apply(dat); return dat; }catch(e){} }
+        }
+        return null;
+      }
       try{
-        const obj = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(q)))));
-        const data = { title: obj.t||'', date: obj.d||'', water: obj.w||'', img: obj.i||'', list: obj.l||[] };
-        fillInputs(data); apply(data); if(viewMode!=='card') localStorage.setItem(storeKey, JSON.stringify(data));
+        var obj = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(q)))));
+        var data = { title: obj.t||'', date: obj.d||'', water: obj.w||'', img: obj.i||'', list: obj.l||[] };
+        fillInputs(data); apply(data); if(viewMode!=='card' && storageAvailable()) localStorage.setItem(storeKey, JSON.stringify(data));
         return data;
-      }catch(e){ console.warn('링크 파싱 실패', e); return null; }
+      }catch(e){ return null; }
     }
 
-    // Embedded data loader (for exported HTML)
     function loadEmbedded(){
       try{
-        const s = document.getElementById('__EMBEDDED_DATA__');
+        var s = document.getElementById('__EMBEDDED_DATA__');
         if(!s) return null;
-        const obj = JSON.parse(s.textContent||'{}');
+        var obj = JSON.parse(s.textContent||'{}');
         return { view: obj.view||'card', data: { title: obj.t||'', date: obj.d||'', water: obj.w||'', img: obj.i||'', list: obj.l||[] } };
       }catch(e){ return null; }
     }
 
-    // Viewer mode: hide panel, disable inputs
     function setCardOnlyMode(on){
-      document.body.classList.toggle('card-only', !!on);
-      const inputs = document.querySelectorAll('.panel input, .panel textarea, .panel button');
-      inputs.forEach(el=>{ el.disabled = !!on; });
+      if(on){ document.body.classList.add('card-only'); }
+      else { document.body.classList.remove('card-only'); }
+      var inputs = document.querySelectorAll('.panel input, .panel textarea, .panel button');
+      for(var i=0;i<inputs.length;i++){ inputs[i].disabled = !!on; }
     }
 
-    // 실시간 미리보기: 입력 변화 즉시 앞면/뒷면 갱신
-    ['input','change'].forEach(evt=>{
-      [titleInput, dateInput, wmInput, imgInput, listInput].forEach(el=>{
-        el.addEventListener(evt, ()=>{
-          if(viewMode==='card') return;
-          const d={ title:titleInput.value, date:dateInput.value, water:wmInput.value, img:imgInput.value, list:sanitize(listInput.value.split(/
-|,|;/)) };
-          apply(d);
-        });
-      });
-    }););
-    }
-
-    // -------- Clipboard-safe helpers --------
     function openCopyModal(text){
-      const modal = $('#copyModal'); const field = $('#copyField'); const status = $('#copyStatus');
+      var modal = $('#copyModal'); var field = $('#copyField'); var status = $('#copyStatus');
       field.value = text; modal.classList.remove('hidden'); field.focus(); field.select();
-      safeCopy(text)
-        .then(ok=>{ status.textContent = ok ? '복사 완료! 다른 곳에 붙여넣기 하세요.' : '클립보드 권한 제한으로 자동 복사 실패. 아래 버튼으로 수동 복사하세요.'; })
-        .catch(()=>{ status.textContent = '자동 복사에 실패했습니다. 전체 선택 후 Ctrl/Cmd+C로 복사하세요.'; });
+      safeCopy(text).then(function(ok){ status.textContent = ok ? '복사 완료! 다른 곳에 붙여넣기 하세요.' : '클립보드 권한 제한으로 자동 복사 실패. 아래 버튼으로 수동 복사하세요.'; }).catch(function(){ status.textContent = '자동 복사에 실패했습니다. 전체 선택 후 Ctrl/Cmd+C로 복사하세요.'; });
     }
 
-    async function safeCopy(text){
-      try{ if(navigator.clipboard && window.isSecureContext){ await navigator.clipboard.writeText(text); return true; } }catch(e){}
-      try{ const ta = document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.focus(); ta.select(); const ok=document.execCommand('copy'); document.body.removeChild(ta); return ok; }catch(e){ return false; }
+    function safeCopy(text){
+      return new Promise(function(resolve){
+        try{
+          if(navigator.clipboard && window.isSecureContext){
+            navigator.clipboard.writeText(text).then(function(){ resolve(true); }).catch(function(){ resolve(false); });
+            return;
+          }
+        }catch(e){}
+        try{
+          var ta = document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.focus(); ta.select(); var ok=document.execCommand('copy'); document.body.removeChild(ta); resolve(ok);
+        }catch(e){ resolve(false); }
+      });
     }
 
-    // -------- Standalone HTML (string) with OG --------
-    function buildCardHtmlString(options={view:'card'}){
-      const payload = buildPayload();
-      const ogTitle = payload.t || 'Flip Card';
-      const ogDesc = `${payload.d||''} · 참여 ${payload.l.length}명`;
-      const ogImg = payload.i || '';
-
-      const doc = document.documentElement.cloneNode(true);
-      if(options.view==='card') doc.querySelector('body').classList.add('card-only');
-      const script = doc.ownerDocument.createElement('script');
-      script.type = 'application/json'; script.id = '__EMBEDDED_DATA__';
-      script.textContent = JSON.stringify({ view: options.view, ...payload });
-      doc.querySelector('body').appendChild(script);
-      // Inject OG into <head>
-      const head = doc.querySelector('head');
-      const metas = [
-        ['meta',{property:'og:title',content:ogTitle}],
-        ['meta',{property:'og:description',content:ogDesc}],
-        ['meta',{property:'og:type',content:'website'}],
-      ];
-      if(ogImg){ metas.push(['meta',{property:'og:image',content:ogImg}]); }
-      metas.forEach(([tag,attrs])=>{ const m=doc.ownerDocument.createElement(tag); Object.entries(attrs).forEach(([k,v])=>m.setAttribute(k,v)); head.appendChild(m); });
-
-      return '<!DOCTYPE html>\n' + doc.outerHTML;
-    }
-
-    function exportStandalone(options={view:'card'}){
-      const html = buildCardHtmlString(options);
-      const blob = new Blob([html], {type:'text/html;charset=utf-8'});
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      const base = (titleInput.value.trim() || 'flip-card').replace(/[^\w가-힣\-_. ]+/g,'').slice(0,60).trim() || 'flip-card';
-      a.download = options.view==='card' ? `${base}-card.html` : `${base}-editor.html`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
-    }
-
-    // -------- GitHub API helpers --------
     function b64(text){ return btoa(unescape(encodeURIComponent(text))); }
-    function slugify(str){ return (str||'card').toLowerCase().replace(/[^\w가-힣\- ]+/g,'').trim().replace(/\s+/g,'-').slice(0,80) || 'card'; }
+    function slugify(str){ var s=(str||'card').toLowerCase(); s=s.replace(/[^\w가-힣\- ]+/g,''); s=s.trim().replace(/\s+/g,'-'); if(!s) s='card'; return s.slice(0,80); }
 
-    async function ghGet(path){
-      const url = `https://api.github.com/repos/${ghOwner.value}/${ghRepo.value}/contents/${path}?ref=${ghBranch.value}`;
-      const res = await fetch(url, { headers: { 'Authorization': `token ${ghToken.value}`, 'Accept':'application/vnd.github+json' } });
-      if(res.status===404) return null; if(!res.ok) throw new Error(`GET ${path} ${res.status}`); return res.json();
-    }
+    function computeBaseUrl(){ return 'https://' + ghOwner.value + '.github.io/' + ghRepo.value; }
 
-    async function ghPut(path, content, message){
-      const get = await ghGet(path); const sha = get && get.sha;
-      const url = `https://api.github.com/repos/${ghOwner.value}/${ghRepo.value}/contents/${path}`;
-      const body = { message, content: b64(content), branch: ghBranch.value }; if(sha) body.sha = sha;
-      const res = await fetch(url, { method:'PUT', headers:{ 'Authorization': `token ${ghToken.value}`, 'Accept':'application/vnd.github+json' }, body: JSON.stringify(body) });
-      if(!res.ok) throw new Error(`PUT ${path} ${res.status}`); return res.json();
-    }
-
-    function computeBaseUrl(){
-      return `https://${ghOwner.value}.github.io/${ghRepo.value}`;
-    }
-
-    const viewerTemplate = function(){
-      // 안전한 최소 뷰어(스크립트/템플릿 리터럴/정규식 없음)
-      var html = '';
-      html += '<!DOCTYPE html>
-';
-      html += '<html lang="ko">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>';
-      html += '<title>카드 뷰어</title>
-';
-      html += '<style>body{margin:0;background:#0b0d10;color:#e8f0ff;font-family:ui-sans-serif,system-ui} .wrap{min-height:100vh;display:grid;place-items:center;padding:24px} .card{max-width:900px;background:#0f141c;border:1px solid #1a2230;border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.35);padding:20px} h1{font-size:18px;margin:0 0 12px;color:#cfe1ff} p{color:#a8b7cf;line-height:1.6} a{color:#6aa7ff}</style>
-';
-      html += '</head>
-<body>
-<div class="wrap"><div class="card">';
-      html += '<h1>카드 뷰어 초기화됨</h1>';
-      html += '<p>history.json을 기반으로 히스토리를 보여주는 뷰어가 곧 활성화됩니다.<br/>첫 카드를 배포하면 이 페이지는 히스토리 뷰어로 교체되거나, 수동으로 교체할 수 있습니다.</p>';
-      html += '<p>메인 저장소로 돌아가기: <a href="./">여기</a></p>';
-      html += '</div></div>
-</body>
-</html>';
+    function buildStaticIndexHtml(hist){
+      var html='';
+      html += '<!DOCTYPE html>\n<html lang="ko">\n<head>\n<meta charset="utf-8"/>\n<meta name="viewport" content="width=device-width, initial-scale=1"/>';
+      html += '<title>카드 히스토리</title>\n<style>body{margin:0;background:#0b0d10;color:#e8f0ff;font-family:ui-sans-serif,system-ui} .layout{display:grid;grid-template-columns:320px 1fr;min-height:100vh} aside{background:#0f141c;border-right:1px solid #1a2230;padding:16px} main{display:grid;place-items:center;padding:24px} h1{font-size:18px;margin:0 0 12px;color:#cfe1ff} ul{list-style:none;padding:0;margin:0} li{margin:6px 0} a{display:flex;gap:10px;align-items:center;padding:10px;border:1px solid #1a2230;border-radius:10px;background:#0b0f15;color:#e8f0ff;text-decoration:none} a:hover{border-color:#2a3952} .meta{display:flex;flex-direction:column;font-size:12px} .meta .t{font-weight:700} iframe{width:1028px;max-width:95vw;height:720px;border:0;border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,.35);background:#111}</style>\n';
+      html += '</head>\n<body>\n<div class="layout">\n<aside>\n<h1>카드 히스토리</h1>\n<ul>';
+      for(var i=0;i<hist.length;i++){
+        var it = hist[i];
+        var t = (it.title||''); var d=(it.date||''); var c=(it.count||0); var url=(it.url||'#');
+        html += '<li><a href="' + url.replace(/"/g,'&quot;') + '" target="viewer">';
+        html += '<div class="meta"><div class="t">' + t.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</div><div>' + d + ' · 참여 ' + c + '명</div></div>';
+        html += '</a></li>';
+      }
+      html += '</ul>\n</aside>\n<main>\n<iframe name="viewer" title="카드 미리보기"></iframe>\n</main>\n</div>\n</body>\n</html>';
       return html;
-    }; d.addEventListener('click',()=>{ frame.src = it.url; }); listEl.appendChild(d); if(idx===0){ frame.src = it.url; } }); }
-  render(hist);
-})();
-<\/script>
-</body></html>`; d.addEventListener('click',()=>{ frame.src = it.url; }); listEl.appendChild(d); if(idx===0){ frame.src = it.url; } }); }
-  render(hist);
-})();
-<\/script>
-</body></html>`;
-
-    async function deployToGithub(){
-      // validations
-      if(!ghOwner.value || !ghRepo.value || !ghBranch.value || !ghToken.value){ alert('GitHub 설정을 모두 입력하세요.'); return; }
-      const payload = buildPayload();
-      const date = payload.d || new Date().toISOString().slice(0,10);
-      const slug = `${date}-${slugify(payload.t||'card')}`;
-      const cardHtml = buildCardHtmlString({view:'card'});
-
-      // 1) push card file
-      const cardPath = `cards/${slug}.html`;
-      await ghPut(cardPath, cardHtml, `feat(card): ${slug}`);
-
-      // 2) update history.json
-      const baseUrl = computeBaseUrl();
-      const cardUrl = `${baseUrl}/${cardPath}`;
-      let hist = [];
-      const existed = await ghGet('history.json');
-      if(existed && existed.content){ try{ hist = JSON.parse(decodeURIComponent(escape(atob(existed.content)))); }catch(e){ hist = []; } }
-      const entry = { id: slug, title: payload.t||'무제', date, image: payload.i||'', count: payload.l.length, url: cardUrl, createdAt: new Date().toISOString() };
-      // de-dup by id then unshift
-      hist = [entry, ...hist.filter(x=>x.id!==entry.id)];
-      await ghPut('history.json', JSON.stringify(hist, null, 2), `chore(history): add ${slug}`);
-
-      // 3) ensure viewer index.html exists
-      const idx = await ghGet('index.html');
-      if(!idx){ await ghPut('index.html', viewerTemplate(), 'chore(viewer): bootstrap index'); }
-
-      // 4) optional discord webhook
-      if(discordWebhook.value){ try{ await fetch(discordWebhook.value, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ content: `새 카드 등록: ${payload.t}\n보기: ${cardUrl}\n전체 히스토리: ${baseUrl}/` }) }); }catch(e){} }
-
-      alert(`배포 완료!\n카드: ${cardUrl}\n히스토리: ${baseUrl}/`);
     }
 
-    // Demo data
-    const demo = { title:'결사 주간 레이드 : 절대자 공략', date: new Date().toISOString().slice(0,10), water:'@TheWind Guild', img:'', list:['노루','소안','윈둥이','아톰','아오키지','무츠','루미','라티','칸나','시온','에리카','진','라그','카일','메이','핀','로웰','세라','하카','도윤'] };
+    function buildCardHtmlString(options){
+      var opt = options||{}; var view = opt.view==='card' ? 'card' : 'edit';
+      // clone current document and embed payload for self-bootstrapping
+      var payload = buildPayload();
+      var docEl = document.documentElement.cloneNode(true);
+      if(view==='card'){ docEl.querySelector('body').classList.add('card-only'); }
+      var s = document.createElement('script'); s.type='application/json'; s.id='__EMBEDDED_DATA__'; s.textContent = JSON.stringify({ view:view, t:payload.t, d:payload.d, w:payload.w, i:payload.i, l:payload.l });
+      docEl.querySelector('body').appendChild(s);
+      return '<!DOCTYPE html>\n' + docEl.outerHTML;
+    }
+
+    function ghHeaders(){ return { 'Authorization': 'token ' + ghToken.value, 'Accept': 'application/vnd.github+json' }; }
+    function ghGet(path){
+      var url = 'https://api.github.com/repos/' + ghOwner.value + '/' + ghRepo.value + '/contents/' + path + '?ref=' + ghBranch.value;
+      return fetch(url, { headers: ghHeaders() }).then(function(res){ if(res.status===404) return null; if(!res.ok) throw new Error('GET '+path+' '+res.status); return res.json(); });
+    }
+    function ghPut(path, content, message){
+      return ghGet(path).then(function(get){ var sha = get && get.sha; var url = 'https://api.github.com/repos/' + ghOwner.value + '/' + ghRepo.value + '/contents/' + path; var body = { message: message, content: b64(content), branch: ghBranch.value }; if(sha) body.sha = sha; return fetch(url, { method:'PUT', headers: ghHeaders(), body: JSON.stringify(body) }); }).then(function(res){ if(!res.ok) throw new Error('PUT '+path+' '+res.status); return res.json(); });
+    }
+
+    function deployToGithub(){
+      if(!ghOwner.value || !ghRepo.value || !ghBranch.value || !ghToken.value){ alert('GitHub 설정을 모두 입력하세요.'); return; }
+      var payload = buildPayload();
+      var date = payload.d || new Date().toISOString().slice(0,10);
+      var slug = date + '-' + slugify(payload.t||'card');
+      var cardHtml = buildCardHtmlString({view:'card'});
+
+      var cardPath = 'cards/' + slug + '.html';
+      ghPut(cardPath, cardHtml, 'feat(card): ' + slug)
+      .then(function(){
+        var baseUrl = computeBaseUrl();
+        var cardUrl = baseUrl + '/' + cardPath;
+        return ghGet('history.json').then(function(existed){
+          var hist=[]; if(existed && existed.content){ try{ hist = JSON.parse(decodeURIComponent(escape(atob(existed.content)))); }catch(e){ hist=[]; }
+          }
+          var entry = { id: slug, title: payload.t||'무제', date: date, image: payload.i||'', count: payload.l.length, url: cardUrl, createdAt: new Date().toISOString() };
+          // de-dup by id
+          var newHist=[entry]; for(var i=0;i<hist.length;i++){ if(hist[i].id!==entry.id) newHist.push(hist[i]); }
+          return ghPut('history.json', JSON.stringify(newHist, null, 2), 'chore(history): add ' + slug).then(function(){ return newHist; });
+        }).then(function(newHist){
+          // static index.html
+          var indexHtml = buildStaticIndexHtml(newHist);
+          return ghPut('index.html', indexHtml, 'chore(viewer): update index');
+        }).then(function(){
+          // webhook (optional)
+          var urlRaw = (discordWebhook.value||'').trim();
+          if(!urlRaw){ return null; }
+          var okFormat = /^(https?:\/\/(discord\.com|discordapp\.com)\/api\/(v\d+\/)?webhooks\/\d+\/[A-Za-z0-9_\-]+)$/.test(urlRaw);
+          if(!okFormat){ alert('웹훅 URL 형식이 올바르지 않아요.'); return null; }
+          var baseUrl = computeBaseUrl();
+          var cardUrl = baseUrl + '/' + cardPath;
+          return fetch(urlRaw, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ content: '새 카드 등록: ' + (payload.t||'무제') + '\n보기: ' + cardUrl + '\n전체 히스토리: ' + baseUrl + '/' }) });
+        }).then(function(){
+          var baseUrl = computeBaseUrl();
+          alert('배포 완료!\n카드: ' + baseUrl + '/' + cardPath + '\n히스토리: ' + baseUrl + '/');
+        });
+      }).catch(function(err){ alert('배포 중 오류: ' + err); });
+    }
 
     // Events
-    $('#flip').addEventListener('click', ()=> card.classList.toggle('is-flipped'));
-    card.addEventListener('click', ()=> card.classList.toggle('is-flipped'));
-    card.addEventListener('keydown', (e)=>{ if(e.key==='Enter') card.classList.add('is-flipped'); if(e.key==='Escape') card.classList.remove('is-flipped'); });
+    $('#flip').addEventListener('click', function(){ card.classList.toggle('is-flipped'); });
+    card.addEventListener('click', function(){ card.classList.toggle('is-flipped'); });
+    card.addEventListener('keydown', function(e){ if(e.key==='Enter') card.classList.add('is-flipped'); if(e.key==='Escape') card.classList.remove('is-flipped'); });
 
     $('#save').addEventListener('click', save);
-    $('#clearAll').addEventListener('click', ()=>{ if(viewMode==='card') return; localStorage.removeItem(storeKey); location.reload(); });
-    $('#loadDemo').addEventListener('click', ()=>{ if(viewMode==='card') return; fillInputs(demo); apply(demo); localStorage.setItem(storeKey, JSON.stringify(demo));});
+    $('#clearAll').addEventListener('click', function(){ if(viewMode==='card') return; if(storageAvailable()) localStorage.removeItem(storeKey); location.reload(); });
+    $('#loadDemo').addEventListener('click', function(){ if(viewMode==='card') return; var demo={ title:'결사 주간 레이드 : 절대자 공략', date:new Date().toISOString().slice(0,10), water:'@TheWind Guild', img:'', list:['노루','소안','윈둥이','아톰','아오키지','무츠','루미','라티','칸나','시온','에리카','진','라그','카일','메이','핀','로웰','세라','하카','도윤'] }; fillInputs(demo); apply(demo); if(storageAvailable()) localStorage.setItem(storeKey, JSON.stringify(demo)); });
+
+    // live preview
+    var liveInputs=[titleInput,dateInput,wmInput,imgInput,listInput];
+    for(var li=0; li<liveInputs.length; li++){
+      (function(el){ el.addEventListener('input', function(){ if(viewMode==='card') return; var d={ title:titleInput.value, date:dateInput.value, water:wmInput.value, img:imgInput.value, list:sanitize((listInput.value||'').split(/\n|,|;/)) }; apply(d); }); })(liveInputs[li]);
+    }
 
     // Sharing
-    $('#exportUrl').addEventListener('click', ()=>{ const url = encodeToUrl({view:'edit'}); openCopyModal(url); });
-    $('#exportCardOnlyUrl').addEventListener('click', ()=>{ const url = encodeToUrl({view:'card'}); openCopyModal(url); });
-    $('#exportHtmlCard').addEventListener('click', ()=> exportStandalone({view:'card'}) );
-    $('#exportHtmlEditor').addEventListener('click', ()=> exportStandalone({view:'edit'}) );
+    $('#exportUrl').addEventListener('click', function(){ var url = encodeToUrl({view:'edit'}); openCopyModal(url); });
+    $('#exportCardOnlyUrl').addEventListener('click', function(){ var url = encodeToUrl({view:'card'}); openCopyModal(url); });
+    $('#exportHtmlCard').addEventListener('click', function(){ var html = buildCardHtmlString({view:'card'}); var blob=new Blob([html],{type:'text/html;charset=utf-8'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); var base=(titleInput.value||'flip-card').replace(/[^\w가-힣\-_. ]+/g,'').slice(0,60).trim()||'flip-card'; a.download=base+'-card.html'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(a.href);},1000); });
+    $('#exportHtmlEditor').addEventListener('click', function(){ var html = buildCardHtmlString({view:'edit'}); var blob=new Blob([html],{type:'text/html;charset=utf-8'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); var base=(titleInput.value||'flip-card').replace(/[^\w가-힣\-_. ]+/g,'').slice(0,60).trim()||'flip-card'; a.download=base+'-editor.html'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(a.href);},1000); });
 
-    // GitHub config
-    $('#saveGhConfig').addEventListener('click', ()=>{
-      const cfg = { owner: ghOwner.value.trim(), repo: ghRepo.value.trim(), branch: ghBranch.value.trim()||'main', token: ghToken.value.trim(), webhook: discordWebhook.value.trim() };
-      if(storageAvailable()){
-        try{ localStorage.setItem(storeGhKey, JSON.stringify(cfg)); }catch(e){ alert('브라우저 저장소 접근이 차단되어 설정을 저장할 수 없습니다.'); return; }
-      }
-      alert('GitHub/웹훅 설정 저장됨(로컬)');
-    }); alert('GitHub/웹훅 설정 저장됨(로컬)'); });
-    $('#clearGhConfig').addEventListener('click', ()=>{
-      if(storageAvailable()) localStorage.removeItem(storeGhKey);
-      ghOwner.value=''; ghRepo.value=''; ghBranch.value='main'; ghToken.value=''; discordWebhook.value='';
-      alert('설정이 초기화되었습니다.');
-    }); ghOwner.value=''; ghRepo.value=''; ghBranch.value='main'; ghToken.value=''; discordWebhook.value=''; alert('설정이 초기화되었습니다.'); });
+    // GitHub config + actions
+    $('#saveGhConfig').addEventListener('click', function(){ var cfg={ owner:ghOwner.value.trim(), repo:ghRepo.value.trim(), branch:(ghBranch.value.trim()||'main'), token:ghToken.value.trim(), webhook: (discordWebhook.value||'').trim() }; if(storageAvailable()){ try{ localStorage.setItem(storeGhKey, JSON.stringify(cfg)); }catch(e){ alert('브라우저 저장소 접근이 차단되어 설정을 저장할 수 없습니다.'); return; } } alert('GitHub/웹훅 설정 저장됨(로컬)'); });
+    $('#clearGhConfig').addEventListener('click', function(){ if(storageAvailable()) localStorage.removeItem(storeGhKey); ghOwner.value=''; ghRepo.value=''; ghBranch.value='main'; ghToken.value=''; discordWebhook.value=''; alert('설정이 초기화되었습니다.'); });
+    $('#testWebhook').addEventListener('click', function(){ var url=(discordWebhook.value||'').trim(); if(!url){ alert('Webhook URL을 입력하세요.'); return; } var ok=/^(https?:\/\/(discord\.com|discordapp\.com)\/api\/(v\d+\/)?webhooks\/\d+\/[A-Za-z0-9_\-]+)$/.test(url); if(!ok){ alert('웹훅 URL 형식이 올바르지 않아요.'); return; } fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:'✅ 웹훅 테스트: Flip Card 참여보드'})}).then(function(res){ if(res.ok) alert('웹훅 테스트: 성공! 채널을 확인하세요.'); else res.text().then(function(t){ alert('웹훅 테스트 실패 ('+res.status+') '+t.slice(0,160)); }); }).catch(function(e){ alert('웹훅 요청 에러: '+e); }); });
     $('#deployGithub').addEventListener('click', deployToGithub);
 
-    // Modal events
-    $('#tryCopyBtn').addEventListener('click', async ()=>{ const url = $('#copyField').value; const ok = await safeCopy(url); $('#copyStatus').textContent = ok ? '복사 완료! 다른 곳에 붙여넣기 하세요.' : '복사 실패. 전체 선택 후 Ctrl/Cmd+C로 복사하세요.'; });
-    $('#selectBtn').addEventListener('click', ()=>{ const f=$('#copyField'); f.focus(); f.select(); });
-    $('#closeModal').addEventListener('click', ()=> $('#copyModal').classList.add('hidden'));
-    $('#shareBtn').addEventListener('click', async ()=>{ const url = $('#copyField').value; if(navigator.share){ try{ await navigator.share({title:'Flip Card 참여보드', text:'공유 링크', url}); }catch(e){} } else { $('#copyStatus').textContent = '이 브라우저는 시스템 공유를 지원하지 않습니다. 복사 기능을 이용하세요.'; } });
+    // Copy modal events
+    $('#tryCopyBtn').addEventListener('click', function(){ var url=$('#copyField').value; safeCopy(url).then(function(ok){ $('#copyStatus').textContent = ok ? '복사 완료! 다른 곳에 붙여넣기 하세요.' : '복사 실패. 전체 선택 후 Ctrl/Cmd+C로 복사하세요.'; }); });
+    $('#selectBtn').addEventListener('click', function(){ var f=$('#copyField'); f.focus(); f.select(); });
+    $('#closeModal').addEventListener('click', function(){ $('#copyModal').classList.add('hidden'); });
+    $('#shareBtn').addEventListener('click', function(){ var url=$('#copyField').value; if(navigator.share){ navigator.share({title:'Flip Card 참여보드', text:'공유 링크', url:url}).catch(function(){}); } else { $('#copyStatus').textContent='이 브라우저는 시스템 공유를 지원하지 않습니다. 복사 기능을 이용하세요.'; } });
 
-    // Diagnostics / Test cases
-    function logDiag(msg){ console.log(msg); alert(msg); }
     function runDiagnostics(){
-      // 1) URL encode/decode roundtrip
-      let ok1=false; try{ const payload=buildPayload(); const url=encodeToUrl({view:'edit'}); const q=new URL(url).searchParams.get('q'); const obj=JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(q))))); ok1 = JSON.stringify({t:payload.t,d:payload.d,w:payload.w,i:payload.i,l:payload.l})===JSON.stringify(obj); }catch(e){}
-      // 2) localStorage R/W
-      let ok2=false; try{ const k='__test_'+Math.random(); localStorage.setItem(k,'1'); ok2 = localStorage.getItem(k)==='1'; localStorage.removeItem(k);}catch(e){}
-      // 3) Embedded export sample
-      let ok3=false; try{ const html=buildCardHtmlString({view:'card'}); ok3 = html.includes('__EMBEDDED_DATA__'); }catch(e){}
-      // 4) GitHub config present
-      const ok4 = !!(ghOwner.value && ghRepo.value && ghBranch.value && ghToken.value);
-      logDiag(`진단 결과:\n1) 링크 인코딩/디코딩: ${ok1?'OK':'FAIL'}\n2) 로컬 저장소: ${ok2?'OK':'FAIL'}\n3) 내보내기(임베드) 생성: ${ok3?'OK':'FAIL'}\n4) GitHub 설정 입력됨: ${ok4?'OK':'미입력'}`);
-    }
+      var ok1=false; try{ var payload=buildPayload(); var url=encodeToUrl({view:'edit'}); var q=new URL(url).searchParams.get('q'); var obj=JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(q))))); ok1 = JSON.stringify({t:payload.t,d:payload.d,w:payload.w,i:payload.i,l:payload.l})===JSON.stringify(obj); }catch(e){}
+      var ok2=false; try{ var k='__test_'+Math.random(); localStorage.setItem(k,'1'); ok2 = (localStorage.getItem(k)==='1'); localStorage.removeItem(k);}catch(e){}
+      var ok3=false; try{ var html=buildCardHtmlString({view:'card'}); ok3 = html.indexOf('__EMBEDDED_DATA__')>-1; }catch(e){}
+      var ok4 = !!(ghOwner.value && ghRepo.value && ghBranch.value && ghToken.value);
+      alert('진단 결과:\n1) 링크 인코딩/디코딩: '+(ok1?'OK':'FAIL')+'\n2) 로컬 저장소: '+(ok2?'OK':'FAIL')+'\n3) 내보내기(임베드) 생성: '+(ok3?'OK':'FAIL')+'\n4) GitHub 설정 입력됨: '+(ok4?'OK':'미입력')); }
     $('#runDiag').addEventListener('click', runDiagnostics);
 
-    // First load
-    if(!decodeFromUrl()) load();
+    // Initial load
+    if(!decodeFromUrl()){
+      if(storageAvailable()){
+        var rawGh = localStorage.getItem(storeGhKey); if(rawGh){ try{ var c=JSON.parse(rawGh); ghOwner.value=c.owner||''; ghRepo.value=c.repo||''; ghBranch.value=c.branch||'main'; ghToken.value=c.token||''; discordWebhook.value=c.webhook||''; }catch(e){} }
+      }
+    }
+  })();
   </script>
 </body>
 </html>
