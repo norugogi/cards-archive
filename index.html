@@ -206,7 +206,7 @@
     // localStorage 가 사용 가능한지 확인 (Safari 프라이빗/3rd-party iframe 대비)
     function storageAvailable(){
       try{ const k='__ls_test__'+Math.random(); localStorage.setItem(k,'1'); localStorage.removeItem(k); return true; }catch(e){ return false; }
-    }| 'card'
+    } || 'card'
 
     function sanitize(list){
       return Array.from(new Set(list.map(x=>x.trim()).filter(x=>x.length>0))).sort((a,b)=>a.localeCompare(b,'ko'));
