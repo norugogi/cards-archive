@@ -140,7 +140,7 @@
           <button class="btn" id="testWebhook">웹훅 테스트</button>
           <button class="btn ghost" id="clearGhConfig">설정 초기화</button>
         </div>
-        <small>배포 시 /cards/슬러그.html, history.json, index.html(정적 목록) 갱신됩니다. Pages는 https://<owner>.github.io/<repo>/ 로 서비스됩니다.</small>
+        <small>배포 시 /cards/슬러그.html, history.json 갱신됩니다. Pages는 https://<owner>.github.io/<repo>/ 로 서비스됩니다.</small>
 
         <div class="actions">
           <button class="btn" id="runDiag">진단 실행</button>
@@ -337,29 +337,11 @@
     function slugify(str){ var s=(str||'card').toLowerCase(); s=s.replace(/[^\w가-힣\- ]+/g,''); s=s.trim().replace(/\s+/g,'-'); if(!s) s='card'; return s.slice(0,80); }
 
     function computeBaseUrl(){
-      // GitHub Pages base URL (project pages)
       return 'https://' + ghOwner.value + '.github.io/' + ghRepo.value;
-    }
-
-    function buildStaticIndexHtml(hist){
-      var html='';
-      html += '<!DOCTYPE html>\n<html lang="ko">\n<head>\n<meta charset="utf-8"/>\n<meta name="viewport" content="width=device-width, initial-scale=1"/>';
-      html += '<title>카드 히스토리</title>\n<style>body{margin:0;background:#0b0d10;color:#e8f0ff;font-family:ui-sans-serif,system-ui} .layout{display:grid;grid-template-columns:320px 1fr;min-height:100vh} aside{background:#0f141c;border-right:1px solid #1a2230;padding:16px} main{display:grid;place-items:center;padding:24px} h1{font-size:18px;margin:0 0 12px;color:#cfe1ff} ul{list-style:none;padding:0;margin:0} li{margin:6px 0} a{display:flex;gap:10px;align-items:center;padding:10px;border:1px solid #1a2230;border-radius:10px;background:#0b0f15;color:#e8f0ff;text-decoration:none} a:hover{border-color:#2a3952} .meta{display:flex;flex-direction:column;font-size:12px} .meta .t{font-weight:700} iframe{width:1028px;max-width:95vw;height:720px;border:0;border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,.35);background:#111}</style>\n';
-      html += '</head>\n<body>\n<div class="layout">\n<aside>\n<h1>카드 히스토리</h1>\n<ul>';
-      for(var i=0;i<hist.length;i++){
-        var it = hist[i];
-        var t = (it.title||''); var d=(it.date||''); var c=(it.count||0); var url=(it.url||'#');
-        html += '<li><a href="' + url.replace(/"/g,'&quot;') + '" target="viewer">';
-        html += '<div class="meta"><div class="t">' + t.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</div><div>' + d + ' · 참여 ' + c + '명</div></div>';
-        html += '</a></li>';
-      }
-      html += '</ul>\n</aside>\n<main>\n<iframe name="viewer" title="카드 미리보기"></iframe>\n</main>\n</div>\n</body>\n</html>';
-      return html;
     }
 
     function buildCardHtmlString(options){
       var opt = options||{}; var view = opt.view==='card' ? 'card' : 'edit';
-      // clone current document and embed payload for self-bootstrapping
       var payload = buildPayload();
       var docEl = document.documentElement.cloneNode(true);
       if(view==='card'){ docEl.querySelector('body').classList.add('card-only'); }
@@ -373,18 +355,15 @@
       var apiPath = path.split('/').map(encodeURIComponent).join('/');
       var url = 'https://api.github.com/repos/' + ghOwner.value + '/' + ghRepo.value + '/contents/' + apiPath + '?ref=' + encodeURIComponent(ghBranch.value);
       return fetch(url, { headers: ghHeaders() }).then(function(res){ if(res.status===404) return null; if(!res.ok) throw new Error('GET '+path+' '+res.status); return res.json(); });
-    }).then(function(res){ if(res.status===404) return null; if(!res.ok) throw new Error('GET '+path+' '+res.status); return res.json(); });
     }
     function ghPut(path, content, message){
       var apiPath = path.split('/').map(encodeURIComponent).join('/');
-      return ghGet(path).then(function(get){
-        var sha = get && get.sha;
+      return ghGet(path).then(function(info){
         var url = 'https://api.github.com/repos/' + ghOwner.value + '/' + ghRepo.value + '/contents/' + apiPath;
         var body = { message: message, content: b64(content), branch: ghBranch.value };
-        if(sha) body.sha = sha;
+        if(info && info.sha) body.sha = info.sha;
         return fetch(url, { method:'PUT', headers: ghHeaders(), body: JSON.stringify(body) });
       }).then(function(res){ if(!res.ok) throw new Error('PUT '+path+' '+res.status); return res.json(); });
-    }; if(sha) body.sha = sha; return fetch(url, { method:'PUT', headers: ghHeaders(), body: JSON.stringify(body) }); }).then(function(res){ if(!res.ok) throw new Error('PUT '+path+' '+res.status); return res.json(); });
     }
 
     function deployToGithub(){
@@ -400,32 +379,24 @@
         var baseUrl = computeBaseUrl();
         var cardUrl = encodeURI(baseUrl + '/' + cardPath);
         return ghGet('history.json').then(function(existed){
-          var hist=[]; if(existed && existed.content){ try{ hist = JSON.parse(decodeURIComponent(escape(atob(existed.content)))); }catch(e){ hist=[]; }
-          }
+          var hist=[]; if(existed && existed.content){ try{ hist = JSON.parse(decodeURIComponent(escape(atob(existed.content)))); }catch(e){ hist=[]; } }
           var entry = { id: slug, title: payload.t||'무제', date: date, image: payload.i||'', count: payload.l.length, url: cardUrl, createdAt: new Date().toISOString() };
-          // de-dup by id
           var newHist=[entry]; for(var i=0;i<hist.length;i++){ if(hist[i].id!==entry.id) newHist.push(hist[i]); }
-          return ghPut('history.json', JSON.stringify(newHist, null, 2), 'chore(history): add ' + slug).then(function(){ return newHist; });
-        }).then(function(newHist){
-          // static index.html
-          var indexHtml = buildStaticIndexHtml(newHist);
-          return ghPut('index.html', indexHtml, 'chore(viewer): update index');
-        }).then(function(){
-          // webhook (optional)
-          var urlRaw = (discordWebhook.value||'').trim();
-          if(!urlRaw){ return null; }
-          var okFormat = /^(https?:\/\/(discord\.com|discordapp\.com)\/api\/(v\d+\/)?webhooks\/\d+\/[A-Za-z0-9_\-]+)$/.test(urlRaw);
-          if(!okFormat){ alert('웹훅 URL 형식이 올바르지 않아요.'); return null; }
-          var baseUrl = computeBaseUrl();
-          var cardUrl = encodeURI(baseUrl + '/' + cardPath);
-          return fetch(urlRaw, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ content: '새 카드 등록: ' + (payload.t||'무제') + '
-보기: ' + cardUrl }) });
-        }).then(function(){
-          var baseUrl = computeBaseUrl();
-          alert('배포 완료!
-카드: ' + cardUrl);
+          return ghPut('history.json', JSON.stringify(newHist, null, 2), 'chore(history): add ' + slug).then(function(){ return cardUrl; });
         });
-      }).catch(function(err){ alert('배포 중 오류: ' + err); });
+      })
+      .then(function(cardUrl){
+        var urlRaw = (discordWebhook.value||'').trim();
+        var okFormat = /^(https?:\/\/(discord\.com|discordapp\.com)\/api\/(v\d+\/)?webhooks\/\d+\/[A-Za-z0-9_\-]+)$/.test(urlRaw);
+        if(urlRaw && okFormat){
+          return fetch(urlRaw, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ content: '새 카드 등록: ' + (payload.t||'무제') + '\n보기: ' + cardUrl }) })
+            .catch(function(){})
+            .then(function(){ return cardUrl; });
+        }
+        return cardUrl;
+      })
+      .then(function(cardUrl){ alert('배포 완료!\n카드: ' + cardUrl); })
+      .catch(function(err){ alert('배포 중 오류: ' + err); });
     }
 
     // Events
